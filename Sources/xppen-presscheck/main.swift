@@ -59,8 +59,8 @@ func typeName(_ raw: UInt) -> String {
     case 2: return "leftMouseUp"
     case 5: return "mouseMoved"
     case 6: return "leftMouseDragged"
-    case 16: return "tabletPoint"
-    case 17: return "tabletProximity"
+    case 23: return "tabletPoint"
+    case 24: return "tabletProximity"
     default: return "type(\(raw))"
     }
 }
@@ -89,6 +89,19 @@ let view = ProbeView(frame: window.contentLayoutRect)
 window.contentView = view
 
 var received: [Received] = []
+// A local monitor sees the event as it enters the application, independently of
+// the responder chain, so it answers "did AppKit deliver this at all".
+var monitored: [Received] = []
+NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mouseMoved,
+                                            .leftMouseDown, .leftMouseUp, .leftMouseDragged]) { event in
+    monitored.append(Received(typeRaw: event.type.rawValue, subtype: event.subtype,
+                              pressure: Double(event.pressure),
+                              tilt: NSPoint(x: Double(event.tilt.x), y: Double(event.tilt.y)),
+                              location: event.locationInWindow))
+    return event
+}
+var proximityAvailable = false
+var proximityResult: Int32 = -999
 view.onEvent = { received.append($0) }
 
 // Cocoa screen coordinates put the origin at the bottom-left of the primary
@@ -127,7 +140,11 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // A timed sequence, spaced out so the run loop delivers each one rather than
     // coalescing them the way it does for a real mouse.
     var script: [(Double, () -> Void)] = []
-    script.append((0.00, { injector.move(to: base, pen: pen(0, tip: false)) }))
+    // A native tablet proximity event, the thing Firefox gates on.
+    let tabletEvents = TabletEventPoster()
+    proximityAvailable = tabletEvents.isAvailable
+    script.append((0.00, { proximityResult = tabletEvents.postProximity(entering: true, at: base) }))
+    script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {
         let point = CGPoint(x: base.x + Double(index + 1) * 20, y: base.y)
@@ -166,6 +183,15 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     let drags = ours.filter { $0.typeRaw == 6 }
     let tablet = ours.filter { $0.subtype == .tabletPoint }
     print("  expected pressures:    " + ramp.map { String(format: "%.3f", Double($0) / Double(Device.maxPressure)) }.joined(separator: ", "))
+    print("  IOHIDSystem connection: \(proximityAvailable ? "opened" : "FAILED to open")")
+    print("  postProximity returned: \(proximityResult)")
+    let proximity = ours.filter { $0.typeRaw == 24 || $0.subtype == .tabletProximity }
+    let monitoredProximity = monitored.filter { $0.typeRaw == 24 || $0.subtype == .tabletProximity }
+    print("  proximity via monitor: \(monitoredProximity.count)   (app-level, ignores the responder chain)")
+    for row in monitored where row.typeRaw == 24 || row.subtype == .tabletProximity {
+        print("    monitored: type=\(typeName(row.typeRaw)) subtype=\(row.subtype.rawValue) entering?")
+    }
+    print("  tablet proximity evts: \(proximity.count)   (Firefox needs at least one)")
     print("  mouseDragged events:   \(drags.count)")
     print("  marked tabletPoint:    \(tablet.count)")
     if let peak = drags.map(\.pressure).max() {

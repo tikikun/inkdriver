@@ -213,6 +213,52 @@ Transcribed from `language.ini` in the shipped app, and the defaults from
 becomes scroll deltas. Our `wheelMode` binding implements the same idea: while
 the bound key is held, pen movement scrolls and the cursor is held still.
 
+## What each browser needs
+
+Read from the browsers' own source, because the requirements differ and a driver
+that satisfies one can fail another.
+
+**Chromium and Edge** set the pointer type from the event *subtype* and read
+pressure from `NSEvent.pressure`:
+
+```objc
+if (subtype == NSTabletPointEventSubtype || subtype == NSTabletProximityEventSubtype)
+    result.pointerType = PointerType::Pen;
+result.force = [event pressure];
+```
+
+Satisfied by writing the tablet subtype plus `kCGMouseEventPressure`.
+
+**Firefox** will not report a pen at all until it has seen a **native proximity
+event**. `widget/cocoa/nsChildView.mm` holds a static flag and returns early
+without it:
+
+```objc
+static bool sIsTabletPointerActivated = false;
+
+- (void)convertCocoaTabletPointerEvent:(NSEvent*)aPointerEvent ... {
+  if (!aOutGeckoEvent || !sIsTabletPointerActivated) return;   // no pen, no pressure
+  aOutGeckoEvent->pressure = [aPointerEvent pressure];
+  aOutGeckoEvent->inputSource = MOZ_SOURCE_PEN;
+  ...
+}
+
+- (void)tabletProximity:(NSEvent*)theEvent {
+  sIsTabletPointerActivated = [theEvent isEnteringProximity];
+}
+```
+
+Apple's event guide states that proximity events are *always* native tablet
+events and never mouse subtypes, and CoreGraphics cannot set an event's type. So
+this requires `IOHIDPostEvent` with `NX_TABLETPROXIMITY` (24), which is what the
+vendor driver does and what `Sources/CTabletEvent` exists for. This has been
+implemented but **not yet confirmed**: the call returns success, and no proximity
+event has been observed arriving at an application in testing.
+
+**Safari and WebKit** derive force from `NSEvent.pressure` and the pressure stage,
+and there are long-standing reports of `PointerEvent.pressure` reading 0 on macOS
+for tablet input in Safari. Treat Safari as uncertain regardless of the driver.
+
 ## What is *not* used
 
 No vendor code and no OpenTabletDriver code. Only measured facts about the wire
