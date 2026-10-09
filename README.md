@@ -1,4 +1,6 @@
-# InkDriver — native arm64 driver + menu-bar app for the XP-Pen Deco 01 V3
+![InkDriver: native macOS driver for the XP-Pen Deco 01 V3](assets/banner.svg)
+
+# InkDriver: native arm64 driver + menu-bar app for the XP-Pen Deco 01 V3
 
 A from-scratch, open-source macOS driver for the **XP-Pen Deco 01 V3**:
 **native arm64, no Rosetta, no vendor code, no third-party dependencies, no
@@ -7,7 +9,7 @@ CoreGraphics (to inject events).
 
 - **Requirements:** macOS 14+, Xcode command line tools. Apple Silicon or Intel.
 - **Size:** the whole app is under 1 MB; the headless driver is ~420 KB.
-- **Nothing to configure to get started** — it finds the tablet, maps it to your
+- **Nothing to configure to get started**: it finds the tablet, maps it to your
   main display and works. Everything else is optional.
 
 | What you get | |
@@ -31,7 +33,7 @@ CoreGraphics (to inject events).
 | Source available | no | **all 3,541 lines** |
 
 The whole API surface the driver can use is CoreGraphics, IOKit's HID manager,
-`AXIsProcessTrusted`, CoreFoundation's run loop, and libc — 48 entry points, no
+`AXIsProcessTrusted`, CoreFoundation's run loop, and libc: 48 entry points, no
 socket, no URL session, no hostname or serial-number lookup, and no event tap.
 That is verifiable in one command:
 
@@ -70,7 +72,7 @@ See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the measured protocol.
 
 Third-party kernel extensions cannot load on Apple Silicon, and a DriverKit HID
 extension needs an entitlement only Apple grants, so a native driver is
-necessarily a userspace process — the same shape the vendor driver uses.
+necessarily a userspace process, the same shape the vendor driver uses.
 
 ```
 tablet ──USB HID──> IOHIDManager ──parse──> coordinate map ──> CGEventPost ──> apps
@@ -103,7 +105,7 @@ The app name and bundle id are two variables at the top of the `Makefile`
 
 ### Signing, and why your permissions kept vanishing
 
-An **ad-hoc signed** app has no stable code identity — macOS keys the TCC grant
+An **ad-hoc signed** app has no stable code identity: macOS keys the TCC grant
 (Input Monitoring, Accessibility) on the code hash, so every rebuild looks like a
 new app and the permissions are silently dropped:
 
@@ -177,7 +179,7 @@ menu bar:
 | `mode` | Behaviour |
 | --- | --- |
 | `stretch` | fill the target display; X and Y scale independently, so circles can become ellipses |
-| `fit` | largest rectangle inside the display that keeps the tablet's proportions, centred — round stays round |
+| `fit` | largest rectangle inside the display that keeps the tablet's proportions, centred, so round stays round |
 | `custom` | map onto `screenRect`, an arbitrary rectangle inside the target display |
 | `allDisplays` | treat every active display as one big surface |
 
@@ -209,14 +211,14 @@ The practical consequences:
   `NSApplication.didChangeScreenParametersNotification`, and the driver exposes
   `refreshDisplays()`.
 
-This matters when displays differ in shape — a landscape 5K beside a portrait 4K
+This matters when displays differ in shape: a landscape 5K beside a portrait 4K
 wants a different rotation and mode each. Changing any setting while a display is
 targeted gives it its own profile; *Use shared defaults* removes it again.
 `switchDisplayIDs` is the same idea for the Switch-monitor cycle.
 
 **Migration.** A config written before display-ID keying is rewritten once, on
 startup, using the live display list. The subtlety is that index keys are not
-distinguishable from display IDs by inspection alone — real display IDs on macOS
+distinguishable from display IDs by inspection alone: real display IDs on macOS
 are often small numbers, so an index `"1"` can look exactly like a display ID
 `1`. A config with no `displayID` (or with a legacy index list) is therefore
 treated as index-keyed, and one that has a `displayID` is treated as ID-keyed.
@@ -264,10 +266,10 @@ the cursor stays where it was because no move events are posted.
 
 | Symptom | Cause |
 | --- | --- |
-| `no tablet found` | another driver holds the interface — `pgrep -fl 'XPPen\|XTouchDriver\|PenTabletInfo'` |
+| `no tablet found` | another driver holds the interface: `pgrep -fl 'XPPen\|XTouchDriver\|PenTabletInfo'` |
 | `failed to open the tablet` | Input Monitoring not granted to this binary |
 | Cursor moves but nothing logs, or everything is doubled | macOS is also reading the tablet: the fallback mouse/digitizer interfaces must be seized |
-| Cursor drifts on its own | same as above — `seizeFallbackInterfaces` |
+| Cursor drifts on its own | same as above: `seizeFallbackInterfaces` |
 | **Pen freezes after clicking the menu bar** | HID was registered for `kCFRunLoopDefaultMode` only; opening a menu runs AppKit's event-tracking loop, which is a *different* mode. Must be scheduled on `kCFRunLoopCommonModes` |
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
 | Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`) on the posted event |
@@ -284,10 +286,10 @@ the cursor stays where it was because no move events are posted.
 
 ## Licence
 
-**GNU General Public License v3.0 or later** — see [LICENSE](LICENSE). Each source
+**GNU General Public License v3.0 or later**. See [LICENSE](LICENSE). Each source
 file carries an `SPDX-License-Identifier: GPL-3.0-or-later` tag.
 
-In short: use it, study it, change it, share it — but if you distribute a modified
+In short: use it, study it, change it and share it, but if you distribute a modified
 version, it has to stay free software under the same terms, with source. That is
 the point: a driver that a manufacturer can drop should not be one that a user
 cannot pick up. If you fix something for your own tablet, the next person gets it.
@@ -300,8 +302,8 @@ door stays open.
 ### Provenance
 
 No vendor code and no OpenTabletDriver code is included. What this project uses
-are **measured facts about the hardware** — HID report layouts, a handshake byte
-sequence, coordinate ranges, and the CoreGraphics event field numbers — all
+are **measured facts about the hardware**: HID report layouts, a handshake byte
+sequence, coordinate ranges, and the CoreGraphics event field numbers, all
 obtained by observation and documented with their evidence in
 [docs/PROTOCOL.md](docs/PROTOCOL.md). Facts about a device are not creative
 expression; the implementation here is independent and freely licensed.

@@ -1,4 +1,4 @@
-# XP-Pen Deco 01 V3 — protocol and behaviour notes
+# XP-Pen Deco 01 V3: protocol and behaviour notes
 
 Every fact below was **measured on real hardware** with `xppen-probe`, then
 cross-checked against the vendor driver's own code where noted. Anything that is
@@ -47,7 +47,7 @@ must open them with `kIOHIDOptionsTypeSeizeDevice` or the pointer will drift on
 its own (measured: without the seize, ~900 stray `subtype=3` mouse-moved events
 appear in a 6-second capture; with it, zero).
 
-## Handshake — verified
+## Handshake, verified
 
 Send on the vendor interface, **report ID 2**, with the report ID as byte 0 of a
 10-byte buffer (the IOKit convention for numbered reports):
@@ -62,7 +62,7 @@ The vendor's startup sequence continues with `80 06 F1`, `02 B8 04`, `80 06 64`,
 `80 06 04`, `80 06 03`, `80 06 05` (spaced 500 µs apart, 1 s after launch). These
 carry configuration the tablet does not need for drawing, so we do not send them.
 
-## Input reports — 12 bytes on the vendor interface
+## Input reports: 12 bytes on the vendor interface
 
 ```
 [0]      report ID, always 0x02 on the pen interface
@@ -88,7 +88,7 @@ tilt_y   = (int8_t)report[9];
 The vendor's code matches, including the pressure branch:
 `CTablet::OnPostTabletMouseData` computes `(report[7] & 0x1f) << 8 | report[6]`
 for devices whose maximum is ≤ 0x2000, but for devices whose maximum is larger it
-uses the full 16-bit read. This model takes the second branch — which is why the
+uses the full 16-bit read. This model takes the second branch, which is why the
 `& 0x1f` mask must **not** be copied.
 
 ### Status byte `report[1]`
@@ -101,7 +101,7 @@ uses the full 16-bit read. This model takes the second branch — which is why t
 | `0xA8`/`0xA9` | eraser | vendor special-case; not yet observed here |
 | `0xC0` | pen out of range | measured |
 | `0xB0`-`0xBF` | command reply (e.g. `0xB1`) | measured |
-| `0xF0` | express keys — mask in `report[2]` | measured |
+| `0xF0` | express keys, mask in `report[2]` | measured |
 
 Bit meanings: `0x01` tip, `0x02` barrel button 1, `0x04` barrel button 2,
 `0x08` eraser, `0x10` part of the command/express encoding, `0x40` out of range.
@@ -149,7 +149,7 @@ sensor's own range is ±60 (`DAT_10001d040` = `0xC4`, `DAT_10001d050` = `0x3C`),
 so `tiltScale` is configurable and defaults to 84.0 for parity.
 
 The vendor posts proximity through `IOHIDPostEvent` (type `0x18`) with an
-NXTabletPointData struct, which has no public CoreGraphics equivalent — there is
+NXTabletPointData struct, which has no public CoreGraphics equivalent: there is
 no way to set an event's *type*. We attach the device/vendor IDs and the
 TabletPoint subtype to a mouse-moved event instead.
 

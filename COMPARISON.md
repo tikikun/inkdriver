@@ -46,7 +46,7 @@ du -sh .git                                              # 272K
 This is the part worth caring about, because it is binary and verifiable.
 
 The driver imports **278 symbols** in total. Strip the Swift runtime and the
-compiler support routines and you are left with **48 Apple API entry points** —
+compiler support routines and you are left with **48 Apple API entry points**.
 this is the entire surface through which the driver can affect your machine:
 
 ```
@@ -75,20 +75,20 @@ MAC-address API anywhere in the binary.
 
 | | XP-Pen 4.0.18 | InkDriver |
 | --- | --- | --- |
-| Network APIs imported | yes — `JsonServer`, `UpdateServer`, `Download` | **none** |
+| Network APIs imported | yes: `JsonServer`, `UpdateServer`, `Download` | **none** |
 | Endpoints present in the code | `data.tr.x-pen.com.cn:2005/receive/data`, `driverinfo.xp-pen.com.cn/api/ping` | **none** |
 | Data-collection path | present: MAC address, OS version, display layout and per-app config changes | **no such code** |
-| Enabled out of the box | no — off, gated in three places, needs a `dataconfig.ini` that is not shipped | n/a |
+| Enabled out of the box | no. Off, gated in three places, needs a `dataconfig.ini` that is not shipped | n/a |
 | Event tap installed | yes (its mask excludes key-down/key-up, so it cannot log keystrokes) | **no tap at all** |
 | Update mechanism | phones home on a schedule | none; `git pull` |
 | Telemetry you can audit | only by disassembling | read the source |
 | Licence | proprietary | **GPL-3.0-or-later** |
 
 To be fair to the vendor: the collection path is **off by default** and inert in
-this build, and the event tap cannot read keystrokes — both verified in
+this build, and the event tap cannot read keystrokes, both verified in
 `docs/` of the analysis this driver came out of. The point is not that XP-Pen is
 doing something sinister. It is that the code is there, closed, and only a
-disassembly can tell you what it does — while here there is nothing to disassemble.
+disassembly can tell you what it does, while here there is nothing to disassemble.
 
 <details>
 <summary>Verify it yourself</summary>
@@ -120,7 +120,7 @@ otool -L .build/release/xpdriverd
 | --- | --- | --- |
 | Always-on diagnostic process | `PenTabletInfo.app`, plus `XTouchDriver.app` | none |
 | GUI ships a "Diagnosis Tool" | yes (`Diagnosis`, `CollectDataChecked`, `diagnosis_*`) | no |
-| What this repo ships instead | — | `xppen-probe` and `xppen-tapcheck`: read-only tools you run by hand, which print to your terminal and exit |
+| What this repo ships instead | none | `xppen-probe` and `xppen-tapcheck`: read-only tools you run by hand, which print to your terminal and exit |
 
 ---
 
@@ -170,11 +170,11 @@ Being straight about the gaps:
 ### What we do that the vendor doesn't
 
 - **~4,400 lines of readable Swift** instead of a 27 MB Qt binary.
-- **No network code at all** — not "disabled", absent.
+- **No network code at all**. Not "disabled", absent.
 - **Sub-megabyte install**, and nothing left behind after `make uninstall-agent`.
 - **Your config is a JSON file** you can version, copy between machines and diff.
 - **Wheel mode that is 1:1.** Hold a key, move the pen, and it scrolls exactly as
-  far as your hand moved — measured, with the sub-pixel remainder carried so slow
+  far as your hand moved, with the sub-pixel remainder carried so slow
   movement still accumulates.
 - **Honest defaults:** express keys do nothing until you assign them.
 
@@ -184,7 +184,7 @@ Being straight about the gaps:
 
 | Claim | Evidence |
 | --- | --- |
-| Report layout, pressure is 14-bit, tilt ±60, express-key bitmask | measured with `xppen-probe`, cross-checked against the vendor's `CTablet::OnPostTabletMouseData` — see [PROTOCOL.md](docs/PROTOCOL.md) |
+| Report layout, pressure is 14-bit, tilt ±60, express-key bitmask | measured with `xppen-probe`, cross-checked against the vendor's `CTablet::OnPostTabletMouseData`. See [PROTOCOL.md](docs/PROTOCOL.md) |
 | Event injection is correct | `xppen-tapcheck --inject-test` posts a marked event; a session tap receives `subtype=1 tablet=(12345,6789) pressure=0.5000` |
 | Mapping maths | `xppen-probe --check-workspace` prints all four corners for every mode, plus rotations and display-ID migration |
 | Config parser | `xppen-probe --check-bindings` |
