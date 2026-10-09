@@ -107,8 +107,26 @@ var received: [Received] = []
 // A local monitor sees the event as it enters the application, independently of
 // the responder chain, so it answers "did AppKit deliver this at all".
 var monitored: [Received] = []
+var shimAvailable = false
+var shimResult: Int32 = -999
+func describeEvent(_ event: NSEvent) -> String {
+    let tablet = event.subtype == .tabletPoint || event.subtype == .tabletProximity
+    var line = "  \(typeName(event.type.rawValue).padding(toLength: 16, withPad: " ", startingAt: 0))"
+        + " type=\(event.type.rawValue) sub=\(event.subtype.rawValue)"
+        + " p=\(String(format: "%.4f", Double(event.pressure)))"
+    if tablet {
+        line += " | SOURCE=\(event.pointingDeviceType.rawValue)"
+            + " cap=0x\(String(event.capabilityMask, radix: 16))"
+            + " vid=\(event.vendorID) tid=\(event.tabletID) did=\(event.deviceID)"
+            + " sysTablet=\(event.systemTabletID) ptrID=\(event.pointingDeviceID)"
+            + " entering=\(event.isEnteringProximity)"
+        line += "   <-- TABLET"
+    }
+    return line
+}
 NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mouseMoved,
                                             .leftMouseDown, .leftMouseUp, .leftMouseDragged]) { event in
+    if !watchMode { print(describeEvent(event)) }
     monitored.append(Received(typeRaw: event.type.rawValue, subtype: event.subtype,
                               pressure: Double(event.pressure),
                               tilt: NSPoint(x: Double(event.tilt.x), y: Double(event.tilt.y)),
@@ -188,6 +206,14 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // Post proximity BOTH ways and see which, if either, arrives as a native
     // tablet event (type 24) rather than a mouse event with a tablet subtype.
     script.append((0.00, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
+    // The vendor's other path: a mouse move posted through IOHIDPostEvent with
+    // tablet point data in the payload.
+    let shim = TabletEventPoster()
+    shimAvailable = shim.isAvailable
+    script.append((0.20, {
+        shimResult = shim.postMouseMoveWithTablet(at: base, tabletX: 20000, tabletY: 15000,
+                                                  pressure: 8000, tiltX: 20, tiltY: -10)
+    }))
     script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {
@@ -227,6 +253,7 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     let drags = ours.filter { $0.typeRaw == 6 }
     let tablet = ours.filter { $0.subtype == .tabletPoint }
     print("  expected pressures:    " + ramp.map { String(format: "%.3f", Double($0) / Double(Device.maxPressure)) }.joined(separator: ", "))
+    print("  IOHIDPostEvent mouse-move path: connection \(shimAvailable ? "opened" : "FAILED"), returned \(shimResult)")
     let viewPairs = Set(ours.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })
     print("  view received:         " + viewPairs.sorted().joined(separator: ", "))
     let monPairs = Set(monitored.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })

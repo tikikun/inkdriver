@@ -16,7 +16,14 @@ let package = Package(
     platforms: [.macOS(.v14)],
     targets: [
         .target(
+            name: "CTabletEvent",
+            path: "Sources/CTabletEvent",
+            publicHeadersPath: "include",
+            linkerSettings: [.linkedFramework("IOKit")]
+        ),
+        .target(
             name: "XPTabletCore",
+            dependencies: ["CTabletEvent"],
                         path: "Sources/XPTabletCore"
         ),
         .executableTarget(

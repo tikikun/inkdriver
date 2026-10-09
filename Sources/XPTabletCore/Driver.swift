@@ -426,6 +426,14 @@ public final class Driver {
 
             if touching && !penIsDown {
                 penIsDown = true
+                // Announce proximity again on every tip-down. A proximity event is
+                // only useful to the application that receives it, and the one sent
+                // when the pen entered range may have gone to whichever window was
+                // frontmost then. Pressing the tip is a natural moment to say the
+                // pen is here, and it costs one event.
+                if !dryRun {
+                    injector.postProximity(entering: true, at: point, pen: pen)
+                }
                 emit(.penDown(x: Int(point.x), y: Int(point.y), pressure: pen.pressure))
                 if !dryRun { injector.penDown(at: point, pen: pen) }
             } else if !touching && penIsDown {

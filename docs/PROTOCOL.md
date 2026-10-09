@@ -242,6 +242,21 @@ vendor emits `subtype = 2` mouse events and a driver using only `subtype = 1` em
 none. Setting `kCGMouseEventSubtype` to 2, plus
 `kCGTabletProximityEventEnterProximity` and the vendor/tablet/pointer ids, fixes it.
 
+### What IOHIDPostEvent can and cannot do
+
+Measured on this macOS with an observer whose view is in the responder chain:
+
+| type | result |
+| --- | --- |
+| `NX_MOUSEMOVED` (5) | **delivered** (arrives as `mouseMoved`, subtype 0) |
+| `NX_TABLETPROXIMITY` (24) | returns `KERN_SUCCESS`, **nothing arrives** |
+| `NX_TABLETPOINTER` (23) | returns `KERN_SUCCESS`, **nothing arrives** |
+
+So the deprecated call still works for mouse moves but no longer produces native
+tablet events. A consequence worth stating: the vendor's `PostTabletProximity` and
+`PostTabletPointer` are therefore inert on this macOS as well, and its tablet
+support comes from its CoreGraphics events plus its IOHIDPostEvent *mouse* moves.
+
 An earlier note here claimed this required `IOHIDPostEvent`, on the strength of a
 2017 Firefox patch that gated on a `tabletProximity:` callback. That was wrong:
 `Sources/CTabletEvent` is retained but **unused**, because the CGEvent subtype path
