@@ -24,58 +24,15 @@ CoreGraphics (to inject events).
 
 ## Why this exists
 
-I did not set out to write a driver. I set out to stop being annoyed by one.
-
-**The vendor software misbehaved.** Shortcuts fired when I was not expecting
-them, and it fought with other input software on the machine. Diagnosing that
-was guesswork, because no source ships with it: when something goes wrong you
-can change a setting and hope, and that is the whole vocabulary available to you.
-
-**It talked to servers I never asked it to talk to.** I watched this machine's
-traffic and saw the vendor software contacting XP-Pen hosts. Reading the shipped
-binaries found `data.tr.x-pen.com.cn:2005/receive/data` and
-`driverinfo.xp-pen.com.cn/api/ping`, plus a collection path that would post the
-machine's MAC address, OS version, display layout and per-application config
-changes. To be fair to XP-Pen: that collection path is off by default in 4.0.18,
-gated in three places, and its feature switch is a file that is not shipped, so
-what I most likely saw was the update check. But I could not tell that from the
-outside, and **that** is the actual problem. You should not need a disassembler
-to know whether your tablet driver is on the network.
-
-**Privacy by construction, not by setting.** A switch you cannot see is not a
-guarantee, and defaults change between versions. InkDriver imports no networking
-API at all: no socket, no URL session, no hostname or serial-number lookup, out
-of 48 Apple API entry points in total. There is no switch to trust because there
-is no code to switch off.
-
-**I wanted to be able to audit it.** Every line is here, and the dependency
-surface is small enough to check in one command. If you want to know what runs
-with your Accessibility permission, you can read it in an afternoon instead of
-trusting it.
-
-**Hardware outlives support.** This tablet works perfectly well today. The
-software around it will not be updated forever, and when that stops, the usual
-outcome is a device that still works and no longer can be used. A driver you can
-read is one you can still fix in five years, on whatever macOS exists then, even
-if the manufacturer has moved on.
-
-**I wanted to know how it actually works.** The protocol in
-[docs/PROTOCOL.md](docs/PROTOCOL.md) is measured rather than assumed, and it
-disagrees with the widely copied configuration files: pressure here is 14-bit,
-not 13, and the vendor normalises tilt by 84 rather than 90. Reading the device
-directly was the only way to find that out.
-
-**Settings should be yours.** A JSON file can be version-controlled, diffed,
-copied to another machine and understood without the manufacturer's tool. The
-vendor's equivalent is proprietary XML that only its own GUI can write.
-
-**And it should be smaller.** Roughly 102 MB installed, three background
-processes and a 27 MB Qt binary to draw a menu, for one tablet. This is under 1 MB
-in a single process.
-
-None of this is a claim that XP-Pen builds bad hardware. The tablet is fine. The
-software around it is closed, heavier than it needs to be, and not something I
-could inspect, so I replaced the part I could replace.
+- The original driver was buggy for me: shortcuts fired unexpectedly and it clashed with other input software.
+- I watched it send traffic to XP-Pen servers (`data.tr.x-pen.com.cn`, `driverinfo.xp-pen.com.cn`). The collection path is off by default in 4.0.18, but that is not knowable from outside.
+- Privacy by construction: no network API is imported at all, so there is no switch to trust.
+- I wanted to audit it. 3,541 lines, 48 Apple API entry points, readable in one sitting.
+- No source ships with the vendor driver, so nothing can be fixed when it breaks.
+- Hardware outlives support. The tablet works; the software around it will not be updated forever.
+- I wanted to know what the device actually sends, not what a copied config file claims.
+- Settings should be a file I own, not proprietary XML only the vendor's GUI can write.
+- 102 MB, three background processes and a Qt runtime, for one tablet.
 
 ## How it compares
 
