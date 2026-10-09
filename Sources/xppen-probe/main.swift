@@ -147,6 +147,65 @@ func parseOptions() -> Options {
             }
             exit(0)
 
+        case "--check-pressure":
+            print("pressure pipeline and contact decision\n")
+            print("contact decision (status, raw pressure, threshold -> touching)")
+            print("-----------------------------------------------------------")
+            let cases: [(String, Bool, UInt16, UInt16)] = [
+                ("hover, no leakage",            false, 0,     0),
+                ("hover, leaked 400",            false, 400,   0),
+                ("hover, leaked 877 (measured max)", false, 877, 0),
+                ("hover with threshold 1000",    false, 877,   1000),
+                ("tip just touched (measured min)", true, 13,  0),
+                ("tip, light press",             true,  500,   0),
+                ("tip below threshold 1000",     true,  500,   1000),
+                ("tip above threshold 1000",     true,  1200,  1000),
+                ("tip, full press",              true,  16383, 0),
+            ]
+            var wrong = 0
+            for (label, tip, pressure, threshold) in cases {
+                let touching = Contact.isTouching(tipDown: tip, pressure: pressure, threshold: threshold)
+                let expected = tip && (threshold == 0 || pressure >= threshold)
+                if touching != expected { wrong += 1 }
+                let padded = label.padding(toLength: 38, withPad: " ", startingAt: 0)
+                let tipText = tip ? "down" : "up"
+                let verdict = touching ? "TOUCHING" : "not touching"
+                print("  \(padded) tip=\(tipText)  p=\(pressure)  thr=\(threshold)  -> \(verdict)")
+            }
+            print("\n  hovering can never produce a phantom click: "
+                  + (wrong == 0 ? "yes, all cases correct" : "NO, \(wrong) case(s) wrong"))
+
+            print("\nnormalisation (raw -> CGEvent pressure field, which is 0.0 ... 1.0)")
+            print("-----------------------------------------------------------------")
+            for raw in [UInt16(0), 1, 500, 8191, 8192, 16382, 16383] {
+                let pen = PenReport(x: 0, y: 0, pressure: raw, tiltX: 0, tiltY: 0,
+                                    tipDown: true, eraser: false, penButton1: false,
+                                    penButton2: false, inRange: true, status: 0xA1)
+                print(String(format: "  raw %-6u -> %.6f", raw, pen.pressureNormalised))
+            }
+            print("  max pressure constant: \(Device.maxPressure) (14-bit)")
+            print("\n  reported while hovering: "
+                  + (DriverConfig().effectiveZeroPressureOnHover
+                     ? "zeroed, so apps do not see sensor leakage"
+                     : "passed through raw"))
+
+            print("\ntilt")
+            print("----")
+            print("  sensor range: +/-60, the vendor clamps to 0xC4 / 0x3C")
+            print("  divisor 84.0 is the vendor constant (DAT_10001f208), so full tilt")
+            print("  reaches +/-0.714 in the event field, matching the original driver.")
+            print("  Set tiltScale to 60 to normalise against the sensor instead, which")
+            print("  lets applications see full deflection.")
+            let tiltRaws: [Int] = [-60, -30, 0, 30, 60]
+            for scale in [Device.vendorTiltDivisor, 60.0] {
+                let rows = tiltRaws.map { raw -> String in
+                    String(format: "%+d:%+.3f", raw, Double(-raw) / scale)
+                }
+                print("    tiltScale \(Int(scale)) -> " + rows.joined(separator: "  "))
+            }
+            print("  Y is negated for the event field, as the vendor driver does.")
+            exit(0)
+
         case "--check-bindings":
             // Regression check for the config parser: every form the UI and the
             // sample config can write must round-trip.

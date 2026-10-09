@@ -26,6 +26,11 @@ final class DriverModel: ObservableObject {
     @Published var lastEvent = "Idle"
     @Published var pressure: UInt16 = 0
     @Published var accessibilityGranted = EventInjector.hasAccessibilityPermission
+    /// Which tab the settings window shows.
+    @Published var settingsTab: Int = 0
+
+    /// Live pen data for the pressure test view.
+    let penStream = PenStream()
 
     let configPath: String
     let driver: Driver
@@ -85,6 +90,9 @@ final class DriverModel: ObservableObject {
         driver.onControlAction = { [weak self] action in
             guard let self else { return }
             if case .showDriverPanel = action { SettingsWindowController.shared.show(model: self) }
+        }
+        driver.onPenSample = { [weak self] sample in
+            MainActor.assumeIsolated { self?.penStream.ingest(sample) }
         }
         refreshPermissions()
     }
@@ -313,7 +321,14 @@ struct MenuContent: View {
 
         Divider()
 
-        Button("Settings…") { SettingsWindowController.shared.show(model: model) }
+        Button("Pressure test…") {
+            model.settingsTab = 3
+            SettingsWindowController.shared.show(model: model)
+        }
+        Button("Settings…") {
+            model.settingsTab = 0
+            SettingsWindowController.shared.show(model: model)
+        }
         Button("Restart driver") { model.restart(reason: "menu") }
         Button("Re-check permissions") { model.refreshPermissions() }
         Button("Reveal config in Finder") {
@@ -431,7 +446,7 @@ final class SettingsWindowController {
         }
         let hosting = NSHostingController(rootView: SettingsView(model: model))
         let w = NSWindow(contentViewController: hosting)
-        w.title = "XP-Pen Deco 01 V3"
+        w.title = "InkDriver"
         w.styleMask = [.titled, .closable, .miniaturizable]
         w.isReleasedWhenClosed = false
         w.center()
@@ -445,11 +460,13 @@ struct SettingsView: View {
     @ObservedObject var model: DriverModel
 
     var body: some View {
-        TabView {
-            general.tabItem { Label("General", systemImage: "gearshape") }
-            workArea.tabItem { Label("Work area", systemImage: "rectangle.on.rectangle") }
-            pen.tabItem { Label("Pen", systemImage: "pencil.tip") }
-            expressKeys.tabItem { Label("Express keys", systemImage: "keyboard") }
+        TabView(selection: $model.settingsTab) {
+            general.tabItem { Label("General", systemImage: "gearshape") }.tag(0)
+            workArea.tabItem { Label("Work area", systemImage: "rectangle.on.rectangle") }.tag(1)
+            pen.tabItem { Label("Pen", systemImage: "pencil.tip") }.tag(2)
+            PenTestView(model: model, stream: model.penStream)
+                .tabItem { Label("Pressure test", systemImage: "waveform.path.ecg") }.tag(3)
+            expressKeys.tabItem { Label("Express keys", systemImage: "keyboard") }.tag(4)
         }
         .frame(width: 520, height: 420)
         .padding()

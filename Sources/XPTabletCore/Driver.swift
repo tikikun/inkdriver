@@ -40,6 +40,24 @@ public final class Driver {
     /// Called on the main thread for every interesting state change.
     public var onEvent: ((Event) -> Void)?
 
+    /// Every decoded pen report. Used by the pen test view; leave nil when nothing
+    /// is watching and it costs nothing.
+    public var onPenSample: ((PenSample) -> Void)?
+
+    /// One decoded report, alongside what the driver did with it.
+    public struct PenSample {
+        /// As handed to applications: pressure is zeroed while hovering if that
+        /// option is on, and the tool may have been overridden to eraser.
+        public let pen: PenReport
+        /// Exactly what the hardware reported, before any of that. The sensor
+        /// leaks while hovering, which is worth being able to see.
+        public let rawPressure: UInt16
+        /// Mapped screen position.
+        public let point: CGPoint
+        /// True when the driver considers the pen to be touching.
+        public let touching: Bool
+    }
+
     public private(set) var isRunning = false
     public private(set) var tabletConnected = false
     /// IORegistry id of the device we are reading. Changes when the tablet is
@@ -273,7 +291,17 @@ public final class Driver {
             emit(.message("unrecognised report: " + prefix.map { String(format: "%02X", $0) }.joined(separator: " ")))
 
         case .pen(let rawPen):
-            let pen = applyEraserOverride(rawPen)
+            let rawPressure = rawPen.pressure
+            var pen = applyEraserOverride(rawPen)
+            // Contact is the tip switch; a non-zero threshold only raises the bar.
+            // See Contact.isTouching for why pressure cannot stand alone.
+            let threshold = config.effectivePressureThreshold
+            let touching = Contact.isTouching(tipDown: pen.tipDown,
+                                              pressure: pen.pressure,
+                                              threshold: threshold)
+            if config.effectiveZeroPressureOnHover && !touching {
+                pen.pressure = 0
+            }
             lastPressure = pen.pressure
 
             if !inProximity {
@@ -328,8 +356,8 @@ public final class Driver {
             lastRaw = (pen.x, pen.y)
             lastPoint = point
 
-            let threshold = config.effectivePressureThreshold
-            let touching = threshold > 0 ? (pen.tipDown || pen.pressure > threshold) : pen.tipDown
+            onPenSample?(PenSample(pen: pen, rawPressure: rawPressure,
+                                   point: point, touching: touching))
 
             if touching && !penIsDown {
                 penIsDown = true

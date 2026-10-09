@@ -15,11 +15,67 @@ CoreGraphics (to inject events).
 | What you get | |
 | --- | --- |
 | Pen | position, 14-bit pressure, tilt, both barrel buttons |
+| Pressure test | a live view in the app: draw on the tablet, watch line width follow pressure, with raw hardware pressure graphed against what applications receive |
 | Express keys | 8 keys, each bindable to any of the vendor's actions, or a shortcut you record |
 | Wheel mode | hold a key and move the pen to scroll, 1:1 with no acceleration |
 | Mapping | stretch / keep-proportions / custom screen area / all displays, rotation, invert |
 | Multiple monitors | per-display settings, switch displays from a bound key |
 | Menu bar app | full settings window, JSON config, starts at login |
+
+## Why this exists
+
+I did not set out to write a driver. I set out to stop being annoyed by one.
+
+**The vendor software misbehaved.** Shortcuts fired when I was not expecting
+them, and it fought with other input software on the machine. Diagnosing that
+was guesswork, because no source ships with it: when something goes wrong you
+can change a setting and hope, and that is the whole vocabulary available to you.
+
+**It talked to servers I never asked it to talk to.** I watched this machine's
+traffic and saw the vendor software contacting XP-Pen hosts. Reading the shipped
+binaries found `data.tr.x-pen.com.cn:2005/receive/data` and
+`driverinfo.xp-pen.com.cn/api/ping`, plus a collection path that would post the
+machine's MAC address, OS version, display layout and per-application config
+changes. To be fair to XP-Pen: that collection path is off by default in 4.0.18,
+gated in three places, and its feature switch is a file that is not shipped, so
+what I most likely saw was the update check. But I could not tell that from the
+outside, and **that** is the actual problem. You should not need a disassembler
+to know whether your tablet driver is on the network.
+
+**Privacy by construction, not by setting.** A switch you cannot see is not a
+guarantee, and defaults change between versions. InkDriver imports no networking
+API at all: no socket, no URL session, no hostname or serial-number lookup, out
+of 48 Apple API entry points in total. There is no switch to trust because there
+is no code to switch off.
+
+**I wanted to be able to audit it.** Every line is here, and the dependency
+surface is small enough to check in one command. If you want to know what runs
+with your Accessibility permission, you can read it in an afternoon instead of
+trusting it.
+
+**Hardware outlives support.** This tablet works perfectly well today. The
+software around it will not be updated forever, and when that stops, the usual
+outcome is a device that still works and no longer can be used. A driver you can
+read is one you can still fix in five years, on whatever macOS exists then, even
+if the manufacturer has moved on.
+
+**I wanted to know how it actually works.** The protocol in
+[docs/PROTOCOL.md](docs/PROTOCOL.md) is measured rather than assumed, and it
+disagrees with the widely copied configuration files: pressure here is 14-bit,
+not 13, and the vendor normalises tilt by 84 rather than 90. Reading the device
+directly was the only way to find that out.
+
+**Settings should be yours.** A JSON file can be version-controlled, diffed,
+copied to another machine and understood without the manufacturer's tool. The
+vendor's equivalent is proprietary XML that only its own GUI can write.
+
+**And it should be smaller.** Roughly 102 MB installed, three background
+processes and a 27 MB Qt binary to draw a menu, for one tablet. This is under 1 MB
+in a single process.
+
+None of this is a claim that XP-Pen builds bad hardware. The tablet is fine. The
+software around it is closed, heavier than it needs to be, and not something I
+could inspect, so I replaced the part I could replace.
 
 ## How it compares
 
@@ -258,6 +314,7 @@ the cursor stays where it was because no move events are posted.
 .build/release/xppen-probe --watch --init      # stream decoded reports
 .build/release/xppen-probe --check-bindings    # config parser + action table
 .build/release/xppen-probe --check-workspace   # tablet -> screen mapping maths
+.build/release/xppen-probe --check-pressure    # contact decision, pressure and tilt
 .build/release/xpdriverd --dry-run             # exercise the parser, inject nothing
 .build/release/xppen-tapcheck --inject-test    # prove event injection end to end
 ```
@@ -272,13 +329,22 @@ the cursor stays where it was because no move events are posted.
 | Cursor drifts on its own | same as above: `seizeFallbackInterfaces` |
 | **Pen freezes after clicking the menu bar** | HID was registered for `kCFRunLoopDefaultMode` only; opening a menu runs AppKit's event-tracking loop, which is a *different* mode. Must be scheduled on `kCFRunLoopCommonModes` |
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
+| Pen clicks or draws while hovering | contact was derived from pressure. The sensor leaks while hovering (877 measured on this unit) and the tip-down range starts at 13, so the two overlap and only the tip switch can separate them |
 | Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`) on the posted event |
+| Pressure appears in apps when the pen is nowhere near | `zeroPressureOnHover` is off, so the hover leakage is passed through |
 | Pressure maxes out at half | pressure is 14-bit (`report[6] \| report[7]<<8`); the vendor's `& 0x1f` mask is for other models |
 
 ## Design notes
 
-- **Contact is derived from the tip switch, with an optional pressure threshold**
-  (`penDownPressureThreshold`, default 1) so light strokes start cleanly.
+- **Contact comes from the tip switch, never from pressure alone.** The tablet
+  reports pressure while merely hovering: 877 at the top of the range, against a
+  tip-down minimum of 13. Those overlap, so "pressure above a floor" cannot
+  distinguish touching from hovering and produces phantom clicks.
+  `penDownPressureThreshold` can only make contact *harder* (tip switch **and**
+  pressure), never easier, and defaults to 0.
+- **Hover leakage is not passed to applications.** `zeroPressureOnHover`
+  (default on) reports zero pressure unless the pen is in contact, so no app sees
+  the sensor reading as pressure while you hover.
 - **MacOS also consumes the tablet's fallback interfaces.** Without the seize the
   pointer moves independently of the driver; measured ~900 stray events in 6 s.
 - **Tilt is divided by 84.0** to match the vendor exactly; the sensor's own range

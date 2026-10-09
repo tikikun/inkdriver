@@ -142,6 +142,20 @@ public enum DecodedReport: Equatable {
     case unknown(prefix: [UInt8])
 }
 
+/// Whether a report counts as the pen touching the surface.
+///
+/// This lives here, as one function, because getting it wrong is not obvious: the
+/// tablet reports pressure while merely hovering. Measured on this unit, the tip
+/// switch open still produced pressure up to 877, against a tip-down minimum of
+/// 13, so the two ranges overlap and pressure alone cannot separate them. The tip
+/// switch is the only reliable signal; a non-zero threshold can only make contact
+/// *harder*, never easier.
+public enum Contact {
+    public static func isTouching(tipDown: Bool, pressure: UInt16, threshold: UInt16) -> Bool {
+        threshold > 0 ? (tipDown && pressure >= threshold) : tipDown
+    }
+}
+
 public enum ProtocolError: Error {
     case tooShort(expected: Int, got: Int)
 }

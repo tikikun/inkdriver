@@ -43,9 +43,19 @@ public struct DriverConfig: Codable {
     /// `fKX`/`fKY`/`fXLC`/`fYLC` flags for the same purpose).
     public var invertTiltX: Bool?
     public var invertTiltY: Bool?
-    /// Pressure above this counts as the tip touching. 0 disables the threshold
-    /// and uses the tip-switch bit alone.
+    /// Additional minimum pressure required for contact, used together with the
+    /// tip switch. 0 (the default) relies on the tip switch alone.
+    ///
+    /// This is deliberately an **AND**, not an alternative: the tablet reports
+    /// non-zero pressure while merely hovering (measured up to 877 on this unit,
+    /// against a tip-down minimum of 13), so treating "pressure above a floor" as
+    /// contact on its own produces phantom clicks.
     public var penDownPressureThreshold: UInt16?
+    /// Report zero pressure to applications unless the pen is actually in contact.
+    ///
+    /// The hardware leaks the sensor reading while hovering. Passing that through
+    /// would show pressure in apps when the pen is nowhere near the surface.
+    public var zeroPressureOnHover: Bool?
     /// Override the raw coordinate ceiling if a sweep shows different maxima.
     public var maxX: UInt32?
     public var maxY: UInt32?
@@ -126,7 +136,8 @@ public struct DriverConfig: Codable {
     }
 
     public var effectiveTiltScale: Double { tiltScale ?? Device.vendorTiltDivisor }
-    public var effectivePressureThreshold: UInt16 { penDownPressureThreshold ?? 1 }
+    public var effectivePressureThreshold: UInt16 { penDownPressureThreshold ?? 0 }
+    public var effectiveZeroPressureOnHover: Bool { zeroPressureOnHover ?? true }
     public var effectiveSendHandshake: Bool { sendHandshake ?? true }
     public var effectiveSeizeFallback: Bool { seizeFallbackInterfaces ?? true }
     public var effectiveScrollSensitivity: Double { scrollSensitivity ?? 1.0 }
@@ -168,7 +179,8 @@ public struct DriverConfig: Codable {
       "tiltScale": 84.0,
       "invertTiltX": false,
       "invertTiltY": false,
-      "penDownPressureThreshold": 1,
+      "penDownPressureThreshold": 0,
+      "zeroPressureOnHover": true,
       "sendHandshake": true,
       "seizeFallbackInterfaces": true,
       "scrollSensitivity": 1.0,
