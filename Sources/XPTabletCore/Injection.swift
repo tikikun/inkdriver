@@ -414,9 +414,9 @@ public final class EventInjector {
         event.setIntegerValueField(TabletField.mouseSubtype, value: TabletField.subtypeTabletProximity)
         event.setIntegerValueField(TabletField.proximityVendorID, value: Int64(Device.vendorID))
         event.setIntegerValueField(TabletField.proximityTabletID, value: Int64(Device.productID))
-        event.setIntegerValueField(TabletField.proximityPointerID, value: 1)
-        event.setIntegerValueField(TabletField.proximityDeviceID, value: 1)
-        event.setIntegerValueField(TabletField.proximitySystemTabletID, value: 1)
+        event.setIntegerValueField(TabletField.proximityPointerID, value: Device.tabletDeviceID)
+        event.setIntegerValueField(TabletField.proximityDeviceID, value: Device.tabletDeviceID)
+        event.setIntegerValueField(TabletField.proximitySystemTabletID, value: Device.tabletDeviceID)
         event.setIntegerValueField(TabletField.proximityVendorPointerType, value: pen.eraser ? 3 : 1)
         event.setIntegerValueField(TabletField.proximityCapabilityMask, value: 0x17c7)
         event.setIntegerValueField(TabletField.proximityPointerType, value: pen.eraser ? 3 : 1)
@@ -450,7 +450,9 @@ public final class EventInjector {
         if pen.penButton2 { buttons |= 4 }
         event.setIntegerValueField(TabletField.pointButtons, value: buttons)
 
-        event.setIntegerValueField(TabletField.deviceID, value: Int64(Device.productID))
+        // Must match the proximity event's device id, or the pen looks like two
+        // different devices to an application tracking it.
+        event.setIntegerValueField(TabletField.deviceID, value: Device.tabletDeviceID)
         event.setIntegerValueField(TabletField.vendor1, value: Int64(Device.vendorID))
         event.setIntegerValueField(TabletField.vendor2, value: Int64(Device.productID))
     }

@@ -75,6 +75,13 @@ public enum Device {
     /// (`DAT_10001d040` = 0xC4 = -60, `DAT_10001d050` = 0x3C = 60).
     public static let maxTilt: Int8 = 60
 
+    /// A single device id shared by the proximity event and every tablet point
+    /// event. These have to agree: an application that tracks the pen by device id
+    /// sees two different devices otherwise. The vendor uses one id throughout
+    /// (measured: 5 on both), while we previously reported the product id on the
+    /// point events and an unrelated value on the proximity event.
+    public static let tabletDeviceID: Int64 = 1
+
     /// Divisor the vendor applies to raw tilt before writing the CGEvent field
     /// (`DAT_10001f208` = 0x4055000000000000 = 84.0). Used as the default
     /// `tiltScale` so behaviour matches the original driver exactly.

@@ -144,11 +144,26 @@ if watchMode {
                                                 .leftMouseDown, .leftMouseUp, .leftMouseDragged,
                                                 .rightMouseDragged, .otherMouseDragged]) { event in
         let tablet = event.subtype == .tabletPoint || event.subtype == .tabletProximity
-        print("  \(typeName(event.type.rawValue).padding(toLength: 16, withPad: " ", startingAt: 0))"
-              + " type=\(event.type.rawValue) subtype=\(event.subtype.rawValue)"
-              + " pressure=\(String(format: "%.4f", Double(event.pressure)))"
-              + " tilt=(\(String(format: "%.3f", Double(event.tilt.x))),\(String(format: "%.3f", Double(event.tilt.y))))"
-              + (tablet ? "   <-- tablet" : ""))
+        var line = "  \(typeName(event.type.rawValue).padding(toLength: 16, withPad: " ", startingAt: 0))"
+            + " type=\(event.type.rawValue) sub=\(event.subtype.rawValue)"
+            + " p=\(String(format: "%.4f", Double(event.pressure)))"
+            + " tilt=(\(String(format: "%.3f", Double(event.tilt.x))),\(String(format: "%.3f", Double(event.tilt.y))))"
+        if tablet {
+            // Everything AppKit exposes about the pointing device. One of these is
+            // what Firefox is reading and we are not setting.
+            line += " | SOURCE=\(event.pointingDeviceType.rawValue)"
+                + " cap=0x\(String(event.capabilityMask, radix: 16))"
+                + " vid=\(event.vendorID) tid=\(event.tabletID) did=\(event.deviceID)"
+                + " sysTablet=\(event.systemTabletID) ptrID=\(event.pointingDeviceID)"
+                + " vPtrType=\(event.vendorPointingDeviceType)"
+                + " entering=\(event.isEnteringProximity)"
+                + " serial=\(event.pointingDeviceSerialNumber)"
+                + " absX=\(event.absoluteX) absY=\(event.absoluteY) absZ=\(event.absoluteZ)"
+                + " rot=\(String(format: "%.2f", event.rotation))"
+                + " tang=\(String(format: "%.2f", event.tangentialPressure))"
+            line += "   <-- TABLET"
+        }
+        print(line)
         return event
     }
     app.run()
@@ -172,8 +187,12 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // coalescing them the way it does for a real mouse.
     var script: [(Double, () -> Void)] = []
     // A native tablet proximity event, the thing Firefox gates on.
-    // Use the driver's own path, so this tests what the driver actually does.
-    script.append((0.00, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
+    // Post proximity BOTH ways and see which, if either, arrives as a native
+    // tablet event (type 24) rather than a mouse event with a tablet subtype.
+    let tabletEvents = TabletEventPoster()
+    proximityAvailable = tabletEvents.isAvailable
+    script.append((0.00, { proximityResult = tabletEvents.postProximity(entering: true, at: base) }))
+    script.append((0.06, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
     script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {
@@ -215,6 +234,13 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     print("  expected pressures:    " + ramp.map { String(format: "%.3f", Double($0) / Double(Device.maxPressure)) }.joined(separator: ", "))
     print("  IOHIDSystem connection: \(proximityAvailable ? "opened" : "FAILED to open")")
     print("  postProximity returned: \(proximityResult)")
+    let viewPairs = Set(ours.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })
+    print("  view received:         " + viewPairs.sorted().joined(separator: ", "))
+    let monPairs = Set(monitored.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })
+    print("  monitor received:      " + monPairs.sorted().joined(separator: ", "))
+    for row in ours where row.typeRaw == 24 {
+        print("    NATIVE tabletProximity arrived at the view (type 24)")
+    }
     let proximity = ours.filter { $0.typeRaw == 24 || $0.subtype == .tabletProximity }
     let monitoredProximity = monitored.filter { $0.typeRaw == 24 || $0.subtype == .tabletProximity }
     print("  proximity via monitor: \(monitoredProximity.count)   (app-level, ignores the responder chain)")

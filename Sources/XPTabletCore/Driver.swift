@@ -327,7 +327,10 @@ public final class Driver {
             if inProximity {
                 inProximity = false
                 emit(.proximity(false))
-                if !dryRun { injector.postProximity(entering: false, at: lastPoint, pen: toolReport(eraser: eraserOverride)) }
+                if !dryRun {
+                    injector.postProximity(entering: false, at: lastPoint, pen: toolReport(eraser: eraserOverride))
+                    emit(.message("sent tablet proximity: LEAVE (subtype 2)"))
+                }
             }
             lastPenButton = [false, false]
             lastRaw = nil
@@ -372,6 +375,7 @@ public final class Driver {
                 emit(.proximity(true))
                 if !dryRun {
                     injector.postProximity(entering: true, at: point, pen: pen)
+                    emit(.message("sent tablet proximity: ENTER (subtype 2)"))
                 }
             }
 
