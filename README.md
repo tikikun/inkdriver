@@ -105,9 +105,10 @@ or leave it at the default 84 for exact vendor parity.
 ## Status
 
 **Working, and verified against real hardware.** The protocol was measured with
-`xppen-probe`, cross-checked against the vendor driver's own code, and the event
-path was proven with `xppen-tapcheck` (a posted event arrives at a session event
-tap as `subtype=1 tablet=(12345,6789) pressure=0.5000 tilt=(0.250,0.000) buttons=1`).
+`xppen-probe` and cross-checked against the vendor driver's own code, and the
+event path is verified in `InkTest`: an ordinary AppKit application that receives
+what the system injects and draws it, so what it shows is what any drawing
+application sees.
 
 | Feature | State |
 | --- | --- |
@@ -186,7 +187,6 @@ flowchart TB
   menu["InkDriver.app<br/>xppen-menu, menu bar UI,<br/>area editor, key bindings"] --> coreTarget["XPTabletCore"]
   daemon["xpdriverd<br/>headless, for launchd or scripting"] --> coreTarget
   probe["xppen-probe<br/>read-only protocol probe<br/>and self checks"] --> coreTarget
-  tapcheck["xppen-tapcheck<br/>proves injected events<br/>reach the event stream"] --> coreTarget
   coreTarget --> device2["the tablet"]
 ```
 
@@ -199,8 +199,28 @@ menu-bar app and the headless CLI run exactly the same code:
 | `xppen-menu` | the menu-bar app (installed as `InkDriver.app`) |
 | `xpdriverd` | headless driver, for launchd or scripting |
 | `xppen-probe` | read-only protocol probe |
-| `xppen-tapcheck` | verifies injected events reach the event stream |
 | `xppen-inktest` | a drawing window for testing the pen and the eraser by hand |
+
+### InkTest
+
+A separate, ordinary AppKit application for checking the pen and the eraser by hand.
+It is the released artefact of this repository.
+
+```bash
+make inktest-run      # build, install to ~/Applications, open
+```
+
+It draws pressure-scaled ink, removes ink for eraser strokes, shows the tool, and
+follows the pen with a grey ring in eraser mode. It deliberately does **not** link
+`XPTabletCore`, so it is an independent check: what it shows is what any drawing
+application receives.
+
+It exists because a browser cannot test the eraser. The DOM's `pointerType` is only
+ever `pen`, `mouse` or `touch`, so a web page reports success whatever the driver
+does. Eraser state travels in the tablet proximity event's pointer type, which AppKit
+surfaces as `NSEvent.pointingDeviceType` (1 pen, 3 eraser) on the `tabletProximity:`
+callback, and that is what this app tracks, the same way Firefox and other
+applications do.
 
 ## Build and install
 
@@ -378,9 +398,7 @@ the cursor stays where it was because no move events are posted.
 .build/release/xppen-probe --check-bindings    # config parser + action table
 .build/release/xppen-probe --check-workspace   # tablet -> screen mapping maths
 .build/release/xppen-probe --check-pressure    # contact decision, pressure and tilt
-.build/release/xppen-presscheck                # whether applications receive pressure
 .build/release/xpdriverd --dry-run             # exercise the parser, inject nothing
-.build/release/xppen-tapcheck --inject-test    # prove event injection end to end
 ```
 
 ## Troubleshooting
@@ -394,7 +412,7 @@ the cursor stays where it was because no move events are posted.
 | **Pen freezes after clicking the menu bar** | HID was registered for `kCFRunLoopDefaultMode` only; opening a menu runs AppKit's event-tracking loop, which is a *different* mode. Must be scheduled on `kCFRunLoopCommonModes` |
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
 | Pen clicks or draws while hovering | contact was derived from pressure. The sensor leaks while hovering (877 measured on this unit) and the tip-down range starts at 13, so the two overlap and only the tip switch can separate them |
-| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Check with `xppen-presscheck` |
+| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Draw in `InkTest` and watch the pressure readout |
 | No pen in Firefox, everything else fine | **Fixed.** See `docs/PROTOCOL.md` for the layout detail. Previously: Firefox sets its pen flag only from `tabletProximity:`, which AppKit raises only for a native `NSTabletProximity` event. A CGEvent with that subtype arrives as a plain `mouseMoved` instead (measured), and `IOHIDPostEvent` produces no such event on this macOS (measured). Earlier details: Firefox reports `pointerType: "mouse"` and pressure `0`/`0.5` from our events, while the same Firefox instance reports `pen` with 47 distinct pressure values from the vendor's, measured with an identical harness. Our proximity event reports the same `pointingDeviceType`, capability mask and vendor/tablet ids as the vendor's, so the difference is not yet identified. See docs/PROTOCOL.md |
 | No pressure in Firefox | Firefox ignores tablet data until told a pen is in range, by a mouse event with subtype 2 (`TabletProximity`) carrying the proximity fields. The driver sends that when the pen **enters range**, so with Firefox already focused, lift the pen clear of the tablet and bring it back |
 | No pressure in a browser, but pressure in a native app | the same thing, from the other direction: browsers always use `NSEvent.pressure`, so the mouse pressure field is not optional |

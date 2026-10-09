@@ -62,7 +62,34 @@ run-app: app
 
 inktest: build
 	$(SWIFT) build -c release --product xppen-inktest
-	@echo "run it with: .build/release/xppen-inktest"
+
+# InkTest as a proper application bundle. It reads as a normal app: Dock icon,
+# application identity, ordinary window activation. Running the same code as a bare
+# executable gives a window with no bundle behind it, which does not repaint or
+# activate like a real window.
+INKTEST_NAME := InkTest
+INKTEST_ID   := com.local.inktest
+INKTEST      := .build/$(INKTEST_NAME).app
+INKTEST_BIN  := $(INKTEST)/Contents/MacOS/$(INKTEST_NAME)
+
+inktest-app: build
+	rm -rf $(INKTEST)
+	mkdir -p $(INKTEST)/Contents/MacOS $(INKTEST)/Contents/Resources
+	cp $(BIN)/xppen-inktest $(INKTEST_BIN)
+	sed -e "s|@APP_NAME@|$(INKTEST_NAME)|g" \
+	    -e "s|@EXECUTABLE@|$(INKTEST_NAME)|g" \
+	    -e "s|@BUNDLE_ID@|$(INKTEST_ID)|g" \
+	    Support/InkTest-Info.plist.in > $(INKTEST)/Contents/Info.plist
+	printf 'APPL????' > $(INKTEST)/Contents/PkgInfo
+	plutil -lint $(INKTEST)/Contents/Info.plist
+	codesign --force --sign - $(INKTEST) 2>/dev/null || true
+	@echo "built $(INKTEST)"
+
+inktest-run: inktest-app
+	mkdir -p $(HOME)/Applications
+	rm -rf $(HOME)/Applications/$(INKTEST_NAME).app
+	cp -R $(INKTEST) $(HOME)/Applications/$(INKTEST_NAME).app
+	@echo "installed $(HOME)/Applications/$(INKTEST_NAME).app"
 
 probe: build
 	$(BIN)/xppen-probe
@@ -73,8 +100,6 @@ watch: build
 descriptor: build
 	$(BIN)/xppen-probe --descriptor
 
-tapcheck: build
-	$(BIN)/xppen-tapcheck
 
 dry-run: build
 	$(BIN)/xpdriverd --dry-run
@@ -88,7 +113,6 @@ install: build
 	mkdir -p $(PREFIX)
 	cp $(BIN)/xpdriverd $(PREFIX)/xpdriverd
 	cp $(BIN)/xppen-probe $(PREFIX)/xppen-probe
-	cp $(BIN)/xppen-tapcheck $(PREFIX)/xppen-tapcheck
 	@echo "installed CLI tools to $(PREFIX)"
 
 # Install the menu-bar app into ~/Applications and start it at login.

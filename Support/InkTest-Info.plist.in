@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Bundle template for InkTest, the pen and eraser test window.
+
+  This is a normal application: no LSUIElement, so it has a Dock icon, a real
+  application identity and ordinary window activation. It has to be a bundle for
+  that. The same source run as a bare executable has no Info.plist and no bundle
+  identity, and its window does not behave like a normal window.
+
+  Substituted by the Makefile:
+    @APP_NAME@    human-readable name
+    @EXECUTABLE@  Mach-O name inside Contents/MacOS
+    @BUNDLE_ID@   reverse-DNS identifier
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>@APP_NAME@</string>
+    <key>CFBundleDisplayName</key>
+    <string>@APP_NAME@</string>
+    <key>CFBundleIdentifier</key>
+    <string>@BUNDLE_ID@</string>
+    <key>CFBundleExecutable</key>
+    <string>@EXECUTABLE@</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>

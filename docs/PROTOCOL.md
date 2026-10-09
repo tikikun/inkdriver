@@ -259,7 +259,7 @@ from `kCGTabletEventPressure` (field 19). With only the tablet field set, AppKit
 reports `1.0` while the mouse button is down and `0.0` otherwise, so a web drawing
 app sees full pressure the instant you touch the surface and nothing in between.
 
-Measured with `xppen-presscheck`, sending a ramp of 0.375, 0.625, 0.875, 1.0:
+Measured while drawing in `InkTest`, sending a ramp of 0.375, 0.625, 0.875, 1.0:
 
 | fields set | `NSEvent.pressure` received | |
 | --- | --- | --- |
