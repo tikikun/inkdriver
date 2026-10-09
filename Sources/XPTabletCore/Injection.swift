@@ -414,6 +414,10 @@ public final class EventInjector {
         event.setIntegerValueField(TabletField.mouseSubtype, value: TabletField.subtypeTabletProximity)
         event.setIntegerValueField(TabletField.proximityVendorID, value: Int64(Device.vendorID))
         event.setIntegerValueField(TabletField.proximityTabletID, value: Int64(Device.productID))
+        // One id throughout, shared with the tablet point events. The vendor's
+        // exact values (did 5, systemTabletID 2, pointerID 0, vendorPointerType
+        // 2082) were tried and made no observable difference, so they are not
+        // copied here.
         event.setIntegerValueField(TabletField.proximityPointerID, value: Device.tabletDeviceID)
         event.setIntegerValueField(TabletField.proximityDeviceID, value: Device.tabletDeviceID)
         event.setIntegerValueField(TabletField.proximitySystemTabletID, value: Device.tabletDeviceID)
