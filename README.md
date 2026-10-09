@@ -136,6 +136,65 @@ tablet ──USB HID──> IOHIDManager ──parse──> coordinate map ─�
                               (Input Monitoring)                (Accessibility)
 ```
 
+In full, with the three HID collections the device exposes, the two separate
+injection paths, and where macOS asks for permission:
+
+```mermaid
+flowchart LR
+  subgraph device["XP-Pen Deco 01 V3"]
+    pen["pen collection<br/>usage page 0xFF0A<br/>report ID 2, 12 bytes"]
+    mouse["mouse collection<br/>usage page 0x01"]
+    digitizer["digitizer collection<br/>usage page 0x0D"]
+  end
+
+  subgraph core["XPTabletCore<br/>one process, no UI code"]
+    hid["HIDTablet<br/>IOHIDManager + handshake 02 B0 04"]
+    decode["ReportDecoder<br/>x, y, 14-bit pressure, tilt, tip, buttons"]
+    keys["Actions<br/>express key bindings"]
+    area["AreaMapper<br/>tablet area to display, per-display profile,<br/>rotation, invert, fit or fill or stretch"]
+    inject["Injector"]
+    config["Config<br/>JSON, profiles keyed by display ID"]
+  end
+
+  subgraph os["macOS"]
+    cg["CGEventPost<br/>cursor, clicks, scroll, keys"]
+    native["IOHIDPostEvent<br/>native tablet proximity + point"]
+    apps["applications"]
+  end
+
+  pen -->|"seized, so macOS cannot move the cursor<br/>from the same tablet"| hid
+  mouse -.->|"seized"| hid
+  digitizer -.->|"seized"| hid
+  hid --> decode
+  decode -->|"pen report"| area
+  decode -->|"status 0xF0"| keys
+  config --> area
+  config --> keys
+  area --> inject
+  keys --> inject
+  inject -->|"Input Monitoring<br/>Accessibility"| cg
+  inject -->|"proximity gates Firefox and other<br/>apps that wait to be told a pen is in range"| native
+  cg --> apps
+  native --> apps
+```
+
+Why two injection paths, since it looks redundant: `CGEventPost` can carry a mouse
+event with a tablet *subtype* and that is enough for Chromium and native AppKit
+applications, but it cannot create a real tablet event, and Firefox ignores tablet
+data until it has seen one. See `docs/POST-MORTEM-FIREFOX-PEN.md`.
+
+The pipeline above lives in one target, and every front end runs the same code:
+
+```mermaid
+flowchart TB
+  agent["launchd agent<br/>com.local.inkdriver"] --> menu
+  menu["InkDriver.app<br/>xppen-menu, menu bar UI,<br/>area editor, key bindings"] --> coreTarget["XPTabletCore"]
+  daemon["xpdriverd<br/>headless, for launchd or scripting"] --> coreTarget
+  probe["xppen-probe<br/>read-only protocol probe<br/>and self checks"] --> coreTarget
+  tapcheck["xppen-tapcheck<br/>proves injected events<br/>reach the event stream"] --> coreTarget
+  coreTarget --> device2["the tablet"]
+```
+
 `XPTabletCore` holds the whole driver and has no UI or CLI concerns, so the
 menu-bar app and the headless CLI run exactly the same code:
 
