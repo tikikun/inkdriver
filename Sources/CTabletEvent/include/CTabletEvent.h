@@ -24,11 +24,9 @@ int xp_post_tablet_proximity(int connect, int x, int y, int entering,
                              int pointerType, int vendorID, int tabletID,
                              int pointerID, int capabilityMask);
 
-/// Post a mouse move through IOHIDPostEvent (NX_MOUSEMOVED), carrying tablet
-/// point data in the event payload. This is the vendor's CTablet::PostTabletOldMove
-/// path: IOHIDPostEvent returns success but produces no native *tablet* event on
-/// this macOS, so the question is whether the mouse-move form works.
-int xp_post_mouse_move_with_tablet(int connect, int x, int y, int tabletX, int tabletY,
-                                   int pressure, int tiltX, int tiltY);
+/// Post a native tablet point event (NX_TABLETPOINTER).
+int xp_post_tablet_point(int connect, int x, int y, int tabletX, int tabletY,
+                         int tabletZ, int buttons, int pressure,
+                         int tiltX, int tiltY, int deviceID);
 
 #endif

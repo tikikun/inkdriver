@@ -48,8 +48,9 @@ int xp_post_tablet_proximity(int connect, int x, int y, int entering,
     location.x = (SInt16)x;
     location.y = (SInt16)y;
 
+    // options = kIOHIDSetCursorPosition, matching the vendor's call, which passes 2.
     return (int)IOHIDPostEvent(connect, NX_TABLETPROXIMITY, location, &data,
-                               kNXEventDataVersion, 0, 0);
+                               kNXEventDataVersion, 0, kIOHIDSetCursorPosition);
 }
 
 int xp_post_tablet_point(int connect, int x, int y, int tabletX, int tabletY,
@@ -77,29 +78,4 @@ int xp_post_tablet_point(int connect, int x, int y, int tabletX, int tabletY,
 
     return (int)IOHIDPostEvent(connect, NX_TABLETPOINTER, location, &data,
                                kNXEventDataVersion, 0, 0);
-}
-
-int xp_post_mouse_move_with_tablet(int connect, int x, int y, int tabletX, int tabletY,
-                                   int pressure, int tiltX, int tiltY) {
-    if (connect <= 0) {
-        return -1;
-    }
-    NXEventData data;
-    memset(&data, 0, sizeof(data));
-    data.mouse.tablet.point.x = (SInt32)tabletX;
-    data.mouse.tablet.point.y = (SInt32)tabletY;
-    data.mouse.tablet.point.z = 0;
-    data.mouse.tablet.point.buttons = 0;
-    data.mouse.tablet.point.pressure = (UInt16)pressure;
-    data.mouse.tablet.point.tilt.x = (SInt16)tiltX;
-    data.mouse.tablet.point.tilt.y = (SInt16)tiltY;
-    data.mouse.tablet.point.deviceID = 1;
-
-    IOGPoint location;
-    location.x = (SInt16)x;
-    location.y = (SInt16)y;
-
-    // NX_MOUSEMOVED == 5, the vendor's event type here.
-    return (int)IOHIDPostEvent(connect, 5, location, &data, kNXEventDataVersion, 0,
-                               kIOHIDSetCursorPosition);
 }

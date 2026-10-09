@@ -24,7 +24,7 @@ let package = Package(
         .target(
             name: "XPTabletCore",
             dependencies: ["CTabletEvent"],
-                        path: "Sources/XPTabletCore"
+            path: "Sources/XPTabletCore"
         ),
         .executableTarget(
             name: "xppen-probe",

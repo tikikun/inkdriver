@@ -46,21 +46,6 @@ public final class TabletEventPoster {
     private static let penPointerType: Int32 = 1   // NX_TABLET_POINTER_PEN
     private static let capabilityMask: Int32 = 0x17c7  // vendor constant
 
-    /// Post a mouse move through IOHIDPostEvent carrying tablet point data. This is
-    /// the vendor's PostTabletOldMove path; the question is whether it produces an
-    /// observable event, given that the native tablet types do not.
-    @discardableResult
-    public func postMouseMoveWithTablet(at point: CGPoint, tabletX: UInt32, tabletY: UInt32,
-                                        pressure: UInt16, tiltX: Int8, tiltY: Int8) -> Int32 {
-        guard connect > 0 else { return -1 }
-        return xp_post_mouse_move_with_tablet(
-            connect,
-            Int32(point.x.rounded()), Int32(point.y.rounded()),
-            Int32(tabletX), Int32(tabletY), Int32(pressure),
-            Int32(tiltX), Int32(tiltY)
-        )
-    }
-
     /// Announce that the pen has entered or left the tablet's range.
     @discardableResult
     public func postProximity(entering: Bool, at point: CGPoint) -> Int32 {

@@ -35,22 +35,24 @@ struct Received {
 }
 
 final class ProbeView: NSView {
-    var onEvent: ((Received) -> Void)?
+    var onEvent: ((Received, String) -> Void)?
 
-    private func record(_ event: NSEvent) {
+    private func record(_ event: NSEvent, _ callback: String) {
         onEvent?(Received(typeRaw: event.type.rawValue,
                           subtype: event.subtype,
                           pressure: Double(event.pressure),
                           tilt: NSPoint(x: Double(event.tilt.x), y: Double(event.tilt.y)),
-                          location: event.locationInWindow))
+                          location: event.locationInWindow), callback)
     }
 
-    override func mouseMoved(with event: NSEvent) { record(event) }
-    override func mouseDragged(with event: NSEvent) { record(event) }
-    override func mouseDown(with event: NSEvent) { record(event) }
-    override func mouseUp(with event: NSEvent) { record(event) }
-    override func tabletPoint(with event: NSEvent) { record(event) }
-    override func tabletProximity(with event: NSEvent) { record(event) }
+    override func mouseMoved(with event: NSEvent) { record(event, "mouseMoved") }
+    override func mouseDragged(with event: NSEvent) { record(event, "mouseDragged") }
+    override func mouseDown(with event: NSEvent) { record(event, "mouseDown") }
+    override func mouseUp(with event: NSEvent) { record(event, "mouseUp") }
+    // These two are what Firefox's ChildView implements. If AppKit never calls
+    // tabletProximity:, Firefox never learns a pen is present.
+    override func tabletPoint(with event: NSEvent) { record(event, "tabletPoint:") }
+    override func tabletProximity(with event: NSEvent) { record(event, "tabletProximity:") }
 }
 
 func typeName(_ raw: UInt) -> String {
@@ -104,11 +106,12 @@ window.contentView = view
 window.makeFirstResponder(view)
 
 var received: [Received] = []
+var receivedVia: [String] = []
+var nativeAvailable = false
+var nativeResult: Int32 = -999
 // A local monitor sees the event as it enters the application, independently of
 // the responder chain, so it answers "did AppKit deliver this at all".
 var monitored: [Received] = []
-var shimAvailable = false
-var shimResult: Int32 = -999
 func describeEvent(_ event: NSEvent) -> String {
     let tablet = event.subtype == .tabletPoint || event.subtype == .tabletProximity
     var line = "  \(typeName(event.type.rawValue).padding(toLength: 16, withPad: " ", startingAt: 0))"
@@ -133,7 +136,7 @@ NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mou
                               location: event.locationInWindow))
     return event
 }
-view.onEvent = { received.append($0) }
+view.onEvent = { row, via in received.append(row); receivedVia.append(via) }
 
 // Cocoa screen coordinates put the origin at the bottom-left of the primary
 // display; CoreGraphics puts it at the top-left. Warping and posting in the wrong
@@ -205,15 +208,14 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // A native tablet proximity event, the thing Firefox gates on.
     // Post proximity BOTH ways and see which, if either, arrives as a native
     // tablet event (type 24) rather than a mouse event with a tablet subtype.
+    // Route A: CGEvent with subtype 2.
     script.append((0.00, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
-    // The vendor's other path: a mouse move posted through IOHIDPostEvent with
-    // tablet point data in the payload.
-    let shim = TabletEventPoster()
-    shimAvailable = shim.isAvailable
-    script.append((0.20, {
-        shimResult = shim.postMouseMoveWithTablet(at: base, tabletX: 20000, tabletY: 15000,
-                                                  pressure: 8000, tiltX: 20, tiltY: -10)
-    }))
+    // Route B: IOHIDPostEvent with NX_TABLETPROXIMITY, which is the only way to
+    // make a *native* tablet event. Earlier this looked like it did nothing, but
+    // that test filtered events to those inside the view.
+    let native = TabletEventPoster()
+    nativeAvailable = native.isAvailable
+    script.append((0.25, { nativeResult = native.postProximity(entering: true, at: base) }))
     script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {
@@ -236,11 +238,14 @@ let ramp: [UInt16] = [2048, 6144, 10240, 14336, 16383]
 
 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     // Only our own events: they are the ones inside the view.
-    let ours = received.filter { $0.location.x >= 0 && $0.location.y >= 0
-                              && $0.location.x <= view.bounds.width
-                              && $0.location.y <= view.bounds.height }
+    let ours = received
 
-    print("--- events delivered to the view (\(ours.count) of \(received.count)) ---")
+    print("--- events delivered to the view ---")
+    let pairs = Set(zip(received, receivedVia).map { row, via in
+        "\(typeName(row.typeRaw))/sub\(row.subtype.rawValue)/via \(via)"
+    })
+    print("  native IOHIDPostEvent: connection \(nativeAvailable ? "opened" : "FAILED"), returned \(nativeResult)")
+    print("  responder callbacks used: " + pairs.sorted().joined(separator: ", "))
     for row in ours {
         let tablet = row.subtype == .tabletPoint ? "  tabletPoint" : ""
         print("  \(typeName(row.typeRaw).padding(toLength: 16, withPad: " ", startingAt: 0))"
@@ -253,7 +258,6 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     let drags = ours.filter { $0.typeRaw == 6 }
     let tablet = ours.filter { $0.subtype == .tabletPoint }
     print("  expected pressures:    " + ramp.map { String(format: "%.3f", Double($0) / Double(Device.maxPressure)) }.joined(separator: ", "))
-    print("  IOHIDPostEvent mouse-move path: connection \(shimAvailable ? "opened" : "FAILED"), returned \(shimResult)")
     let viewPairs = Set(ours.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })
     print("  view received:         " + viewPairs.sorted().joined(separator: ", "))
     let monPairs = Set(monitored.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })

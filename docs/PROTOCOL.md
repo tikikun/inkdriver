@@ -242,6 +242,44 @@ vendor emits `subtype = 2` mouse events and a driver using only `subtype = 1` em
 none. Setting `kCGMouseEventSubtype` to 2, plus
 `kCGTabletProximityEventEnterProximity` and the vendor/tablet/pointer ids, fixes it.
 
+### Why Firefox needs a native proximity event
+
+Current Firefox source (`widget/cocoa/nsChildView.mm`) is unchanged from the 2017
+patch. The gate is real:
+
+```objc
+static bool sIsTabletPointerActivated = false;
+
+- (void)tabletProximity:(NSEvent*)theEvent {          // the only writer
+  sIsTabletPointerActivated = [theEvent isEnteringProximity];
+}
+
+- (void)convertCocoaTabletPointerEvent:(NSEvent*)aPointerEvent ... {
+  if (!aOutGeckoEvent || !sIsTabletPointerActivated) return;   // no pen, no pressure
+  aOutGeckoEvent->inputSource = MOZ_SOURCE_PEN;
+  aOutGeckoEvent->pressure = [aPointerEvent pressure];
+}
+
+case NSMouseMoved:
+  if ([aMouseEvent subtype] == NSTabletPointEventSubtype) {
+    [self convertCocoaTabletPointerEvent:...];
+  }
+```
+
+And **AppKit only calls `tabletProximity:` for a native tablet event.** Measured by
+recording which responder callback fires, not merely which subtype arrives:
+
+| how the event is posted | responder callback that fires |
+| --- | --- |
+| CGEvent, subtype 2 (`TabletProximity`) | **`mouseMoved`** — not `tabletProximity:` |
+| `IOHIDPostEvent`, `NX_TABLETPROXIMITY` | nothing arrives at all |
+
+So a `CGEvent` with a tablet-proximity *subtype* does not satisfy Firefox; it would
+need a genuine `NSTabletProximity` event, which CoreGraphics cannot create and
+which `IOHIDPostEvent` no longer produces here. An earlier check in this repo
+reported "proximity events: 1" and was wrong: it counted the subtype rather than the
+callback, and filtered events by location, which also hid the result.
+
 ### What IOHIDPostEvent can and cannot do
 
 Measured on this macOS with an observer whose view is in the responder chain:
