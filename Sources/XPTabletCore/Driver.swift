@@ -69,6 +69,10 @@ public final class Driver {
     public private(set) var eraserOverride = false
     public private(set) var lastPressure: UInt16 = 0
 
+    /// When the last input report arrived. Used to notice the tablet going quiet.
+    public private(set) var lastReportAt = Date()
+    private var rearmAttempts = 0
+
     public var config: DriverConfig
 
     private let injector = EventInjector()
@@ -142,6 +146,8 @@ public final class Driver {
         }]
 
         deviceRegistryID = registryEntryID(of: pen.device)
+        lastReportAt = Date()
+        rearmAttempts = 0
         isRunning = true
         tabletConnected = true
         emit(.started)
@@ -256,7 +262,58 @@ public final class Driver {
         DispatchQueue.main.async { [weak self] in self?.onEvent?(event) }
     }
 
+    /// Records that the device is alive. A command reply is not input, so it must
+    /// not count as evidence that the pen is working: otherwise the acknowledge
+    /// from a re-arm would look like the pen had started reporting again.
+    private func noteInput() {
+        let gap = Date().timeIntervalSince(lastReportAt)
+        if gap > 20 {
+            emit(.message("input resumed after \(Int(gap))s quiet"))
+        }
+        lastReportAt = Date()
+        rearmAttempts = 0
+    }
+
+    /// Periodic upkeep, called from the host every few seconds.
+    ///
+    /// The tablet drops out of tablet mode on its own after a period of no pen
+    /// activity: the vendor interface simply stops reporting, and nothing arrives
+    /// until the mode command is sent again. Measured directly by running
+    /// `xppen-probe --watch` with and without `--init` on an idle device: zero
+    /// reports without the handshake, a steady stream with it. So while the pen is
+    /// idle the handshake is repeated, which is harmless, and if that stops
+    /// helping the device is reopened from scratch.
+    public func maintenance() {
+        guard isRunning else { return }
+        guard let discovery, let pen = discovery.penInterface else {
+            restart()
+            return
+        }
+
+        // Has the device been unplugged and re-enumerated behind our back?
+        if let known = deviceRegistryID, let current = registryEntryID(of: pen.device),
+           current != known {
+            emit(.message("the tablet was re-enumerated, reopening"))
+            restart()
+            return
+        }
+
+        // Keep the tablet in tablet mode whenever it is not being used. An idle
+        // tablet reports nothing at all, which is normal, so silence is not
+        // evidence of a fault; but a tablet that has quietly left tablet mode will
+        // never report again until it is told to. Re-arming costs one small output
+        // report, so it is done routinely rather than only after a suspected fault.
+        let quiet = Date().timeIntervalSince(lastReportAt)
+        guard quiet > 2, config.effectiveSendHandshake else { return }
+        rearmAttempts += 1
+        _ = sendOutputReport(pen, frame: Device.initFrame)
+    }
+
     private func handle(report bytes: [UInt8]) {
+        // Command replies (the re-arm acknowledge, for instance) are not input.
+        if bytes.count > 1, bytes[1] & 0xF0 != 0xB0 {
+            noteInput()
+        }
         let decoded: DecodedReport
         do { decoded = try ReportDecoder.decode(bytes) } catch { return }
 

@@ -120,6 +120,10 @@ if !driver.tabletConnected {
     exit(1)
 }
 
+// Keep the tablet in tablet mode while the pen is idle.
+let upkeep = Timer(timeInterval: 5, repeats: true) { _ in driver.maintenance() }
+RunLoop.main.add(upkeep, forMode: .common)
+
 signal(SIGINT, SIG_IGN)
 let interrupt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
 interrupt.setEventHandler {

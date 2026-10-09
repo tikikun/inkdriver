@@ -58,6 +58,19 @@ Send on the vendor interface, **report ID 2**, with the report ID as byte 0 of a
 
 The device answers `02 B1 04 00 00 00 00 00 00 00 00 00`.
 
+### The device leaves tablet mode when idle
+
+The handshake is not a one-off. An idle tablet stops reporting on the vendor
+interface entirely, and does not resume until `02 B0 04` is sent again. Measured
+on an otherwise untouched device with `xppen-probe --watch`: zero reports without
+`--init`, a steady stream with it.
+
+A driver therefore has to repeat the command rather than send it once at startup,
+or the pen goes dead after a few minutes and stays dead until something
+re-initialises it. Note also that an idle tablet is silent by design, so a lack of
+reports on its own does not indicate a fault; the two cases are only
+distinguishable by re-arming and seeing whether anything comes back.
+
 The vendor's startup sequence continues with `80 06 F1`, `02 B8 04`, `80 06 64`,
 `80 06 04`, `80 06 03`, `80 06 05` (spaced 500 µs apart, 1 s after launch). These
 carry configuration the tablet does not need for drawing, so we do not send them.

@@ -301,6 +301,13 @@ the cursor stays where it was because no move events are posted.
   distinguish touching from hovering and produces phantom clicks.
   `penDownPressureThreshold` can only make contact *harder* (tip switch **and**
   pressure), never easier, and defaults to 0.
+- **The tablet is re-armed while idle.** It drops out of tablet mode on its own
+  after a period without pen activity, and then reports nothing at all until the
+  `02 B0 04` mode command is sent again. Measured with `xppen-probe --watch`, with
+  and without `--init`, on an otherwise idle device. Silence is not treated as
+  proof of a fault, because an idle tablet is silent by design; the handshake is
+  simply repeated every two seconds while nothing is arriving, which costs one
+  small output report.
 - **Pressure is written to two fields.** `kCGTabletEventPressure` carries it for
   consumers that read tablet data, and `kCGMouseEventPressure` because that is the
   field AppKit turns into `NSEvent.pressure`, which is what applications and every

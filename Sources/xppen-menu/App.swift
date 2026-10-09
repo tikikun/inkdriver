@@ -208,9 +208,7 @@ final class DriverModel: ObservableObject {
     /// bring the driver back up without waiting for the user to notice.
     func healthCheck() {
         guard running else { return }
-        if !driver.isDeviceAlive() {
-            restart(reason: "tablet re-enumerated or disconnected", delay: 1.0)
-        }
+        driver.maintenance()
     }
 
     /// Called when the system wakes.
@@ -931,7 +929,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             wakeObservers.append(observer)
         }
 
-        let timer = Timer(timeInterval: 15, repeats: true) { _ in
+        // Every 2s: keeps the tablet in tablet mode while the pen is idle, and
+        // reopens it if the device has gone away.
+        let timer = Timer(timeInterval: 2, repeats: true) { _ in
             DriverModel.shared.healthCheck()
         }
         // Common modes so the check still runs while a menu is tracking.
