@@ -396,3 +396,10 @@ for tablet input in Safari. Treat Safari as uncertain regardless of the driver.
 
 No vendor code and no OpenTabletDriver code. Only measured facts about the wire
 format and the event fields, all reproducible with the tools in this repo.
+
+### Post-mortem
+
+`docs/POST-MORTEM-FIREFOX-PEN.md` records what this one cost and why it went wrong:
+the two conclusions in this file that had to be retracted, the three measurement
+mistakes behind them, and the offset table the fix depends on. Worth reading before
+touching the proximity event layout.
