@@ -131,13 +131,8 @@ Third-party kernel extensions cannot load on Apple Silicon, and a DriverKit HID
 extension needs an entitlement only Apple grants, so a native driver is
 necessarily a userspace process, the same shape the vendor driver uses.
 
-```
-tablet ──USB HID──> IOHIDManager ──parse──> coordinate map ──> CGEventPost ──> apps
-                              (Input Monitoring)                (Accessibility)
-```
-
-In full, with the three HID collections the device exposes, the two separate
-injection paths, and where macOS asks for permission:
+The three HID collections the device exposes, the two separate injection paths, and
+where macOS asks for permission:
 
 ```mermaid
 flowchart LR
