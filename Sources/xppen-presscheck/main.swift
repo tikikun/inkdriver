@@ -98,6 +98,10 @@ app.activate(ignoringOtherApps: true)
 
 let view = ProbeView(frame: window.contentLayoutRect)
 window.contentView = view
+// AppKit dispatches tabletProximity: down the responder chain, so the view has to
+// be in it. Without this the view never sees a proximity event even when the
+// application does, which is what Firefox's ChildView relies on.
+window.makeFirstResponder(view)
 
 var received: [Received] = []
 // A local monitor sees the event as it enters the application, independently of
