@@ -111,13 +111,20 @@ uses the full 16-bit read. This model takes the second branch, which is why the
 | `0xA0` | pen in range, no buttons | measured (hover) |
 | `0xA1` | tip switch closed | measured |
 | `0xA4` | barrel button (upper) | measured; `0xA5` = tip + button |
-| `0xA8`/`0xA9` | eraser | vendor special-case; not yet observed here |
+| `0xA8`/`0xA9` | eraser | vendor special-case; not reachable on this model, whose P05 stylus has no eraser tip |
 | `0xC0` | pen out of range | measured |
 | `0xB0`-`0xBF` | command reply (e.g. `0xB1`) | measured |
 | `0xF0` | express keys, mask in `report[2]` | measured |
 
 Bit meanings: `0x01` tip, `0x02` barrel button 1, `0x04` barrel button 2,
 `0x08` eraser, `0x10` part of the command/express encoding, `0x40` out of range.
+
+`0x08` is never set by this model: the P05 stylus that ships with the Deco 01 V3 has
+no eraser tip, which XPPen's own documentation confirms. The bit is documented
+because the vendor's code handles it, and the driver still reads it, but eraser mode
+on this tablet is a software state reached through a bound key rather than something
+the pen reports. The vendor's own manual describes the same arrangement: a side
+button configured to switch between pen and eraser.
 
 The vendor excludes `report[1] >= 0xf0` and `(report[1] & 0xf0) == 0xb0` from its
 pen path, so command replies must not be parsed as pen data.
