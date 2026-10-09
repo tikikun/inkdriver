@@ -229,8 +229,25 @@ result.force = [event pressure];
 
 Satisfied by writing the tablet subtype plus `kCGMouseEventPressure`.
 
-**Firefox** will not report a pen at all until it has seen a **native proximity
-event**. `widget/cocoa/nsChildView.mm` holds a static flag and returns early
+**Firefox** will not report a pen until it has been told one is in range, and the
+way to tell it is a mouse event with **subtype 2**
+(`NSTabletProximityEventSubtype`), carrying the proximity fields. Apple's guide:
+a tablet-proximity event has "a type of NSTypeProximity or a mouse subtype of
+NSTabletProximityEventSubtype", and the subtype form is the one CoreGraphics can
+create.
+
+Measured: with the vendor driver, Firefox reports `pointerType: "pen"` and varying
+pressure; capturing both drivers' event streams with the same observer showed the
+vendor emits `subtype = 2` mouse events and a driver using only `subtype = 1` emits
+none. Setting `kCGMouseEventSubtype` to 2, plus
+`kCGTabletProximityEventEnterProximity` and the vendor/tablet/pointer ids, fixes it.
+
+An earlier note here claimed this required `IOHIDPostEvent`, on the strength of a
+2017 Firefox patch that gated on a `tabletProximity:` callback. That was wrong:
+`Sources/CTabletEvent` is retained but **unused**, because the CGEvent subtype path
+does the job and the IOHIDPostEvent route never delivered an observable event.
+
+The older note follows. `widget/cocoa/nsChildView.mm` holds a static flag and returns early
 without it:
 
 ```objc

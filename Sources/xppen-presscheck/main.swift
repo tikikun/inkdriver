@@ -68,6 +68,9 @@ func typeName(_ raw: UInt) -> String {
 // MARK: - Setup
 
 let withMousePressure = !CommandLine.arguments.contains("--no-mouse-pressure")
+// --watch: post nothing, just report everything that arrives. Used to compare
+/// against another driver (for example the vendor's) with identical observation.
+let watchMode = CommandLine.arguments.contains("--watch")
 
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
@@ -81,7 +84,15 @@ let window = NSWindow(
 window.title = "xppen-presscheck"
 window.level = .floating
 window.acceptsMouseMovedEvents = true
-window.center()
+if watchMode {
+    // Cover everything. Another driver moves the cursor with the pen, so a small
+    // window would be left behind and the events would go to whatever is under it.
+    let union = NSScreen.screens.dropFirst().reduce(NSScreen.screens.first?.frame ?? .zero) { $0.union($1.frame) }
+    window.setFrame(union, display: true)
+    window.styleMask = [.borderless]
+} else {
+    window.center()
+}
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
 
@@ -123,6 +134,22 @@ print("  centre, cocoa (\(Int(centreCocoa.x)), \(Int(centreCocoa.y)))"
 print("  kCGMouseEventPressure also set: \(withMousePressure ? "yes" : "no")")
 print()
 
+if watchMode {
+    print("watching, posting nothing. Draw with the pen. Ctrl-C to stop.\n")
+    NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mouseMoved,
+                                                .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+                                                .rightMouseDragged, .otherMouseDragged]) { event in
+        let tablet = event.subtype == .tabletPoint || event.subtype == .tabletProximity
+        print("  \(typeName(event.type.rawValue).padding(toLength: 16, withPad: " ", startingAt: 0))"
+              + " type=\(event.type.rawValue) subtype=\(event.subtype.rawValue)"
+              + " pressure=\(String(format: "%.4f", Double(event.pressure)))"
+              + " tilt=(\(String(format: "%.3f", Double(event.tilt.x))),\(String(format: "%.3f", Double(event.tilt.y))))"
+              + (tablet ? "   <-- tablet" : ""))
+        return event
+    }
+    app.run()
+}
+
 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     let injector = EventInjector()
     injector.tiltScale = Device.vendorTiltDivisor
@@ -141,9 +168,8 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // coalescing them the way it does for a real mouse.
     var script: [(Double, () -> Void)] = []
     // A native tablet proximity event, the thing Firefox gates on.
-    let tabletEvents = TabletEventPoster()
-    proximityAvailable = tabletEvents.isAvailable
-    script.append((0.00, { proximityResult = tabletEvents.postProximity(entering: true, at: base) }))
+    // Use the driver's own path, so this tests what the driver actually does.
+    script.append((0.00, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
     script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {

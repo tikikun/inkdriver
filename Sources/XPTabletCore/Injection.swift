@@ -57,6 +57,20 @@ public enum TabletField {
 
     public static let subtypeTabletPoint: Int64 = 1        // kCGEventMouseSubtypeTabletPoint
     public static let subtypeTabletProximity: Int64 = 2    // kCGEventMouseSubtypeTabletProximity
+
+    // Tablet *proximity* fields. These are distinct from the tablet point fields
+    // above and only apply to an event whose subtype is TabletProximity.
+    public static let proximityVendorID: CGEventField = .tabletProximityEventVendorID                 // 28
+    public static let proximityTabletID: CGEventField = .tabletProximityEventTabletID                 // 29
+    public static let proximityPointerID: CGEventField = .tabletProximityEventPointerID               // 30
+    public static let proximityDeviceID: CGEventField = .tabletProximityEventDeviceID                 // 31
+    public static let proximitySystemTabletID: CGEventField = .tabletProximityEventSystemTabletID     // 32
+    public static let proximityVendorPointerType: CGEventField = .tabletProximityEventVendorPointerType // 33
+    public static let proximityVendorSerial: CGEventField = .tabletProximityEventVendorPointerSerialNumber // 34
+    public static let proximityVendorUniqueID: CGEventField = .tabletProximityEventVendorUniqueID     // 35
+    public static let proximityCapabilityMask: CGEventField = .tabletProximityEventCapabilityMask     // 36
+    public static let proximityPointerType: CGEventField = .tabletProximityEventPointerType           // 37
+    public static let proximityEnter: CGEventField = .tabletProximityEventEnterProximity             // 38
 }
 
 public enum SystemAction: String, Equatable {
@@ -391,11 +405,22 @@ public final class EventInjector {
     public func postProximity(entering: Bool, at point: CGPoint, pen: PenReport) {
         guard let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
                                   mouseCursorPosition: point, mouseButton: .left) else { return }
-        event.setIntegerValueField(TabletField.mouseSubtype, value: TabletField.subtypeTabletPoint)
-        event.setIntegerValueField(TabletField.deviceID, value: Int64(Device.productID))
-        event.setIntegerValueField(TabletField.vendor1, value: Int64(Device.vendorID))
-        event.setIntegerValueField(TabletField.vendor2, value: Int64(Device.productID))
-        applyTabletFields(to: event, pen: pen)
+
+        // Subtype **2**, not 1. Apple's event guide: a tablet-proximity event has
+        // "a type of NSTypeProximity or a mouse subtype of
+        // NSTabletProximityEventSubtype", and it is the subtype form that
+        // CoreGraphics can create. Browser and toolkit code that waits to be told a
+        // pen is in range, Firefox included, keys on this.
+        event.setIntegerValueField(TabletField.mouseSubtype, value: TabletField.subtypeTabletProximity)
+        event.setIntegerValueField(TabletField.proximityVendorID, value: Int64(Device.vendorID))
+        event.setIntegerValueField(TabletField.proximityTabletID, value: Int64(Device.productID))
+        event.setIntegerValueField(TabletField.proximityPointerID, value: 1)
+        event.setIntegerValueField(TabletField.proximityDeviceID, value: 1)
+        event.setIntegerValueField(TabletField.proximitySystemTabletID, value: 1)
+        event.setIntegerValueField(TabletField.proximityVendorPointerType, value: pen.eraser ? 3 : 1)
+        event.setIntegerValueField(TabletField.proximityCapabilityMask, value: 0x17c7)
+        event.setIntegerValueField(TabletField.proximityPointerType, value: pen.eraser ? 3 : 1)
+        event.setIntegerValueField(TabletField.proximityEnter, value: entering ? 1 : 0)
         event.post(tap: .cghidEventTap)
     }
 

@@ -289,7 +289,7 @@ the cursor stays where it was because no move events are posted.
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
 | Pen clicks or draws while hovering | contact was derived from pressure. The sensor leaks while hovering (877 measured on this unit) and the tip-down range starts at 13, so the two overlap and only the tip switch can separate them |
 | Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Check with `xppen-presscheck` |
-| No pressure in Firefox | Firefox ignores tablet data until it has received a native tablet *proximity* event. `Sources/CTabletEvent` posts one via IOHIDPostEvent; this is implemented but not yet confirmed |
+| No pressure in Firefox | Firefox ignores tablet data until told a pen is in range, by a mouse event with subtype 2 (`TabletProximity`) carrying the proximity fields. Writing only subtype 1 (`TabletPoint`) leaves it reporting `pointerType: "mouse"` |
 | No pressure in a browser, but pressure in a native app | the same thing, from the other direction: browsers always use `NSEvent.pressure`, so the mouse pressure field is not optional |
 | Pressure appears in apps when the pen is nowhere near | `zeroPressureOnHover` is off, so the hover leakage is passed through |
 | Pressure maxes out at half | pressure is 14-bit (`report[6] \| report[7]<<8`); the vendor's `& 0x1f` mask is for other models |

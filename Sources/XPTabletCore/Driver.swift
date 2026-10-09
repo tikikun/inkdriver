@@ -76,9 +76,6 @@ public final class Driver {
     public var config: DriverConfig
 
     private let injector = EventInjector()
-    /// Native tablet events. Needed for Firefox, which ignores tablet data until
-    /// it has seen a tabletProximity event; see TabletEventPoster.
-    private let tabletEvents = TabletEventPoster()
     private var discovery: HIDDiscovery?
     private var readers: [HIDReportReader] = []
     private var mapper: AreaMapper
@@ -330,7 +327,7 @@ public final class Driver {
             if inProximity {
                 inProximity = false
                 emit(.proximity(false))
-                if !dryRun { tabletEvents.postProximity(entering: false, at: lastPoint) }
+                if !dryRun { injector.postProximity(entering: false, at: lastPoint, pen: toolReport(eraser: eraserOverride)) }
             }
             lastPenButton = [false, false]
             lastRaw = nil
@@ -374,9 +371,7 @@ public final class Driver {
                 inProximity = true
                 emit(.proximity(true))
                 if !dryRun {
-                    injector.postProximity(entering: true, at: lastPoint, pen: pen)
-                    // The one Firefox actually needs.
-                    tabletEvents.postProximity(entering: true, at: point)
+                    injector.postProximity(entering: true, at: point, pen: pen)
                 }
             }
 
