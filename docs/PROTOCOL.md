@@ -271,7 +271,7 @@ recording which responder callback fires, not merely which subtype arrives:
 
 | how the event is posted | responder callback that fires |
 | --- | --- |
-| CGEvent, subtype 2 (`TabletProximity`) | **`mouseMoved`** — not `tabletProximity:` |
+| CGEvent, subtype 2 (`TabletProximity`) | **`mouseMoved`**, never `tabletProximity:` |
 | `IOHIDPostEvent`, `NX_TABLETPROXIMITY` | nothing arrives at all |
 
 So a `CGEvent` with a tablet-proximity *subtype* does not satisfy Firefox; it would
