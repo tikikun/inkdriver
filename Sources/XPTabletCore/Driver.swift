@@ -468,7 +468,20 @@ public final class Driver {
             }
         case .toggleEraser:
             if isDown {
+                let wasEraser = eraserOverride
                 eraserOverride.toggle()
+                // Switching tools has to be announced. Applications read the pointing
+                // device type from a proximity event, so a tool change is itself a
+                // proximity event: leave with the old type, re-enter with the new one.
+                // The vendor does exactly this, calling its proximity post twice with
+                // the flag flipped in between. Without it the moment is invisible and
+                // a bound eraser button does nothing.
+                if !dryRun, inProximity {
+                    injector.postProximity(entering: false, at: lastPoint,
+                                           pen: toolReport(eraser: wasEraser))
+                    injector.postProximity(entering: true, at: lastPoint,
+                                           pen: toolReport(eraser: eraserOverride))
+                }
                 emit(.message("eraser mode \(eraserOverride ? "on" : "off")"))
             }
         default:

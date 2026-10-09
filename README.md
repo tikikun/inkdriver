@@ -120,7 +120,7 @@ tap as `subtype=1 tablet=(12345,6789) pressure=0.5000 tilt=(0.250,0.000) buttons
 | Adding/removing/reordering monitors needs no reconfiguration | working |
 | Virtual display-layout editor showing where the tablet lands | working |
 | Menu-bar UI + JSON config | working |
-| Eraser mode | working in software: the P05 stylus has no eraser tip, so a bound key toggles eraser mode |
+| Eraser mode | working: this pen has no eraser tip, so a bound key toggles it, and the tool change reaches applications as the pointing device type |
 | LED, battery level, touch ring, wireless | none of these are on this model |
 
 See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the measured protocol.

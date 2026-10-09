@@ -295,23 +295,23 @@ public final class EventInjector {
     }
 
     public func penDown(at point: CGPoint, pen: PenReport) {
-        let eraser = pen.eraser
-        post(type: eraser ? .rightMouseDown : .leftMouseDown,
-             button: eraser ? .right : .left, at: point, pen: pen)
+        // Always the left button, even in eraser mode. An eraser is not a right
+        // click: applications decide they are erasing from the pointing device
+        // type, which arrives in the proximity event (pointerType 3 for an eraser,
+        // 1 for a pen). Sending right-drags instead made applications open a
+        // context menu rather than erase, which is why binding a pen button to
+        // eraser appeared to do nothing at all.
+        post(type: .leftMouseDown, button: .left, at: point, pen: pen)
     }
 
     /// A pen move with the tip down. Applications see this as a drag, which is
     /// what a drawing app uses to lay down a stroke.
     public func postDrag(to point: CGPoint, pen: PenReport) {
-        let eraser = pen.eraser
-        post(type: eraser ? .rightMouseDragged : .leftMouseDragged,
-             button: eraser ? .right : .left, at: point, pen: pen)
+        post(type: .leftMouseDragged, button: .left, at: point, pen: pen)
     }
 
     public func penUp(at point: CGPoint, pen: PenReport) {
-        let eraser = pen.eraser
-        post(type: eraser ? .rightMouseUp : .leftMouseUp,
-             button: eraser ? .right : .left, at: point, pen: pen)
+        post(type: .leftMouseUp, button: .left, at: point, pen: pen)
     }
 
     private func post(type: CGEventType, button: CGMouseButton, at point: CGPoint, pen: PenReport, clickState: Int64 = 0) {

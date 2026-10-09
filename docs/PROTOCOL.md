@@ -126,6 +126,52 @@ on this tablet is a software state reached through a bound key rather than somet
 the pen reports. The vendor's own manual describes the same arrangement: a side
 button configured to switch between pen and eraser.
 
+### How a tool change is signalled
+
+Eraser mode on this model is a software state, so the interesting question is how an
+application is told the tool changed. It is **not** by the strokes, and it is not a
+right click.
+
+The pointing device type travels in the **proximity** event:
+
+```
++0x1c  pointerType   1 = pen, 3 = eraser
++0x1d  enterProximity
+```
+
+Recovered from the vendor, which builds that byte as `(eraserFlag != 0) * 2 | 1` in
+both of its proximity paths, `PostTabletProximity` using `IOHIDPostEvent` and
+`PostTabletProximityMove` using a `CGEvent` with mouse subtype 2.
+
+The consequence is that **changing tools is itself a proximity event**. The vendor
+re-posts proximity whenever the eraser state changes, leaving with the old pointer
+type and re-entering with the new one:
+
+```c
+if (this[0x82] != _m_Eraser) {          /* eraser state changed */
+    PostTabletTiltProximity(this, 0);   /* leave, still pointerType 1 */
+    PostTabletProximityMove(this, 0);
+    this[0x82] = _m_Eraser;
+    PostTabletTiltProximity(this, 1);   /* enter, now pointerType 3 */
+    PostTabletProximityMove(this, 1);
+}
+```
+
+Announcing the tool only when the pen enters range is not enough: pressing an eraser
+button while the pen is already hovering produces no new proximity event, so no
+application learns anything, and a bound eraser button appears to do nothing.
+
+Strokes stay **left button** events in both modes. An earlier version of this driver
+sent right-button drags while in eraser mode, on the theory that applications treat a
+right drag as erasing. Most do not: they open a context menu or ignore it. An
+application decides it is erasing from the pointing device type, which is why
+AppKit reports `NSEvent.pointingDeviceType == NSEraserPointingDevice` for these
+strokes and applications switch tools themselves.
+
+Verified on hardware: with eraser mode bound to barrel button 1, the pointing device
+type reported to a focused application goes `1 -> 3` on the press and back to `1` on
+the release, and no right-button events are generated.
+
 The vendor excludes `report[1] >= 0xf0` and `(report[1] & 0xf0) == 0xb0` from its
 pen path, so command replies must not be parsed as pen data.
 
