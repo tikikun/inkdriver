@@ -126,6 +126,10 @@ public final class Driver {
 
         let seize = config.effectiveSeizeFallback
         if seize && !dryRun {
+            // Both fallback interfaces are seized. Leaving the Digitizer collection
+            // to macOS was tried on the theory that macOS would generate the native
+            // proximity events applications wait for; it did not, and seizing is what
+            // stops the cursor drifting independently.
             for iface in discovery?.interfaces ?? [] where iface.role != .pen {
                 let result = IOHIDDeviceOpen(iface.device, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
                 emit(.message(result == kIOReturnSuccess
