@@ -97,9 +97,7 @@ public final class Driver {
         self.config = config
         self.dryRun = dryRun
         self.mapper = Driver.makeMapper(config)
-        injector.tiltScale = config.effectiveTiltScale
-        injector.invertTiltX = config.invertTiltX ?? false
-        injector.invertTiltY = config.invertTiltY ?? false
+        configureInjector(config)
         injector.onControlAction = { [weak self] action in
             self?.handleControlAction(action)
         }
@@ -206,9 +204,14 @@ public final class Driver {
     public func apply(config: DriverConfig) {
         self.config = config
         mapper = Driver.makeMapper(config)
+        configureInjector(config)
+    }
+
+    private func configureInjector(_ config: DriverConfig) {
         injector.tiltScale = config.effectiveTiltScale
         injector.invertTiltX = config.invertTiltX ?? false
         injector.invertTiltY = config.invertTiltY ?? false
+        injector.alsoSetMousePressure = config.effectiveSetMousePressureField
     }
 
     // MARK: - Mapping
@@ -368,7 +371,11 @@ public final class Driver {
                 emit(.penUp)
                 if !dryRun { injector.penUp(at: point, pen: pen) }
             } else if !dryRun {
-                injector.move(to: point, pen: pen)
+                // While the tip is down this must be a drag, not a move: a plain
+                // mouseMoved with no button held reads as hovering, and drawing
+                // applications ignore it for the stroke in progress.
+                if penIsDown { injector.postDrag(to: point, pen: pen) }
+                else { injector.move(to: point, pen: pen) }
             }
         }
     }

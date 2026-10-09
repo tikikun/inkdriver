@@ -272,6 +272,7 @@ the cursor stays where it was because no move events are posted.
 .build/release/xppen-probe --check-bindings    # config parser + action table
 .build/release/xppen-probe --check-workspace   # tablet -> screen mapping maths
 .build/release/xppen-probe --check-pressure    # contact decision, pressure and tilt
+.build/release/xppen-presscheck                # whether applications receive pressure
 .build/release/xpdriverd --dry-run             # exercise the parser, inject nothing
 .build/release/xppen-tapcheck --inject-test    # prove event injection end to end
 ```
@@ -287,7 +288,8 @@ the cursor stays where it was because no move events are posted.
 | **Pen freezes after clicking the menu bar** | HID was registered for `kCFRunLoopDefaultMode` only; opening a menu runs AppKit's event-tracking loop, which is a *different* mode. Must be scheduled on `kCFRunLoopCommonModes` |
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
 | Pen clicks or draws while hovering | contact was derived from pressure. The sensor leaks while hovering (877 measured on this unit) and the tip-down range starts at 13, so the two overlap and only the tip switch can separate them |
-| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`) on the posted event |
+| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Check with `xppen-presscheck` |
+| No pressure in a browser, but pressure in a native app | the same thing, from the other direction: browsers always use `NSEvent.pressure`, so the mouse pressure field is not optional |
 | Pressure appears in apps when the pen is nowhere near | `zeroPressureOnHover` is off, so the hover leakage is passed through |
 | Pressure maxes out at half | pressure is 14-bit (`report[6] \| report[7]<<8`); the vendor's `& 0x1f` mask is for other models |
 
@@ -299,6 +301,10 @@ the cursor stays where it was because no move events are posted.
   distinguish touching from hovering and produces phantom clicks.
   `penDownPressureThreshold` can only make contact *harder* (tip switch **and**
   pressure), never easier, and defaults to 0.
+- **Pressure is written to two fields.** `kCGTabletEventPressure` carries it for
+  consumers that read tablet data, and `kCGMouseEventPressure` because that is the
+  field AppKit turns into `NSEvent.pressure`, which is what applications and every
+  browser read. Writing only the first leaves web drawing apps with no pressure.
 - **Hover leakage is not passed to applications.** `zeroPressureOnHover`
   (default on) reports zero pressure unless the pen is in contact, so no app sees
   the sensor reading as pressure while you hover.

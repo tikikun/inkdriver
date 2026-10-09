@@ -250,6 +250,15 @@ public final class EventInjector {
     public var tiltScale: Double = Device.vendorTiltDivisor
     public var invertTiltX = false
     public var invertTiltY = false
+    /// Write the pressure into kCGMouseEventPressure as well as the tablet field.
+    ///
+    /// **This is what makes pressure work in applications.** AppKit's
+    /// `NSEvent.pressure` comes from the mouse pressure field, not from
+    /// kCGTabletEventPointPressure, and every browser reads NSEvent.pressure. With
+    /// only the tablet field set, a web app sees pressure 1.0 whenever the button
+    /// is down and 0 otherwise, however hard the pen is pressed. Measured both ways
+    /// with `xppen-presscheck`; see docs/PROTOCOL.md.
+    public var alsoSetMousePressure = true
     /// Handles actions that need the host UI (open panel, switch monitor, …).
     public var onControlAction: ((ControlAction) -> Void)?
 
@@ -274,6 +283,14 @@ public final class EventInjector {
     public func penDown(at point: CGPoint, pen: PenReport) {
         let eraser = pen.eraser
         post(type: eraser ? .rightMouseDown : .leftMouseDown,
+             button: eraser ? .right : .left, at: point, pen: pen)
+    }
+
+    /// A pen move with the tip down. Applications see this as a drag, which is
+    /// what a drawing app uses to lay down a stroke.
+    public func postDrag(to point: CGPoint, pen: PenReport) {
+        let eraser = pen.eraser
+        post(type: eraser ? .rightMouseDragged : .leftMouseDragged,
              button: eraser ? .right : .left, at: point, pen: pen)
     }
 
@@ -391,6 +408,9 @@ public final class EventInjector {
         event.setDoubleValueField(TabletField.pointY, value: Double(pen.y))
         event.setDoubleValueField(TabletField.pointZ, value: 0)
         event.setDoubleValueField(TabletField.pointPressure, value: pen.pressureNormalised)
+        if alsoSetMousePressure {
+            event.setDoubleValueField(.mouseEventPressure, value: pen.pressureNormalised)
+        }
 
         let rawTiltX = invertTiltX ? -pen.tiltX : pen.tiltX
         let rawTiltY = invertTiltY ? -pen.tiltY : pen.tiltY

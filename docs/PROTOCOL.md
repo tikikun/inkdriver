@@ -140,9 +140,35 @@ Reconstructed from the vendor (`setFillTabletEventFields` 0x1000158ef,
 | `kCGTabletEventDeviceID` | 24 | int | product ID |
 
 Setting field 7 to 1 is what makes applications treat the event as a tablet
-point; without it the pressure and tilt fields are ignored. Verified end to end:
-a posted event reaches a session event tap as
+point, and it is what browsers use to report `pointerType: "pen"`. Verified end to
+end: a posted event reaches a session event tap as
 `subtype=1 tablet=(12345,6789) pressure=0.5000 tilt=(0.250,0.000) buttons=1`.
+
+### Pressure must also go in kCGMouseEventPressure
+
+Writing the tablet pressure field alone is **not enough**, and this is easy to get
+wrong because the raw event looks correct. Applications, and every browser, read
+`NSEvent.pressure`, which AppKit takes from `kCGMouseEventPressure` (field 2), not
+from `kCGTabletEventPressure` (field 19). With only the tablet field set, AppKit
+reports `1.0` while the mouse button is down and `0.0` otherwise, so a web drawing
+app sees full pressure the instant you touch the surface and nothing in between.
+
+Measured with `xppen-presscheck`, sending a ramp of 0.375, 0.625, 0.875, 1.0:
+
+| fields set | `NSEvent.pressure` received | |
+| --- | --- | --- |
+| tablet field only | `1.0000, 1.0000, 1.0000, 1.0000` | constant, i.e. button state |
+| tablet field **and** mouse pressure field | `0.3725, 0.6235, 0.8745, 1.0000` | tracks the ramp |
+
+So both fields are written: field 19 for consumers that read the tablet data
+directly, field 2 because that is what AppKit and the browsers actually surface.
+Tilt does not have this problem: `NSEvent.tilt` reads the tablet tilt fields, and
+a sent tilt of 0.238 arrives as 0.238.
+
+A mouse event carrying tablet fields must also match what the application expects
+for the current button state: while the tip is down the event type has to be
+`leftMouseDragged`, not `leftMouseMoved`. A move with no button held reads as
+hovering and is ignored for the stroke in progress.
 
 The vendor divides tilt by 84.0 (`DAT_10001f208` = `0x4055000000000000`). The
 sensor's own range is ±60 (`DAT_10001d040` = `0xC4`, `DAT_10001d050` = `0x3C`),

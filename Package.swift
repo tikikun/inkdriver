@@ -35,6 +35,11 @@ let package = Package(
             path: "Sources/xppen-tapcheck"
         ),
         .executableTarget(
+            name: "xppen-presscheck",
+            dependencies: ["XPTabletCore"],
+            path: "Sources/xppen-presscheck"
+        ),
+        .executableTarget(
             name: "xppen-menu",
             dependencies: ["XPTabletCore"],
             path: "Sources/xppen-menu"
