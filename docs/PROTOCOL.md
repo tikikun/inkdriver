@@ -295,6 +295,32 @@ tablet events. A consequence worth stating: the vendor's `PostTabletProximity` a
 `PostTabletPointer` are therefore inert on this macOS as well, and its tablet
 support comes from its CoreGraphics events plus its IOHIDPostEvent *mouse* moves.
 
+### What was tried for Firefox, and what each attempt showed
+
+Every one of these was measured with a real Firefox instance posting pointer
+events to a local logger, not inferred:
+
+| attempt | result |
+| --- | --- |
+| CGEvent with subtype 2 (TabletProximity) | event reaches the app, but AppKit calls `mouseMoved`, never `tabletProximity:` |
+| match every field of the vendor's proximity event | no change (155 events, all mouse) |
+| announce proximity again on every tip-down | no change (23 tip-downs, all mouse) |
+| `IOHIDPostEvent(NX_TABLETPROXIMITY)`, options 0 and 2 | no event arrives at all |
+| mirror movement through `IOHIDPostEvent` like the vendor | no change (72 events, all mouse) |
+| leave the Digitizer collection to macOS instead of seizing it | no change (70 events, all mouse) |
+| consistent device id between proximity and point events | no change |
+
+The vendor's own connection setup is identical (`IOServiceOpen` with
+`kIOHIDParamConnectType`), so its `IOHIDPostEvent` proximity calls are inert here
+too, and its Firefox success remains unexplained by anything measurable in its
+event stream.
+
+Conclusion: Firefox gates pen handling on `tabletProximity:`, AppKit raises that
+only for a native tablet event, and neither public route can create one on this
+macOS. Open question worth one more measurement: whether the *vendor's* subtype-2
+event fires `tabletProximity:` on a view, which an observer can now determine by
+recording the callback name rather than the subtype.
+
 An earlier note here claimed this required `IOHIDPostEvent`, on the strength of a
 2017 Firefox patch that gated on a `tabletProximity:` callback. That was wrong:
 `Sources/CTabletEvent` is retained but **unused**, because the CGEvent subtype path
