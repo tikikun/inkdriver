@@ -21,7 +21,6 @@ APPBIN   := $(APP)/Contents/MacOS/$(APP_NAME)
 PREFIX   := $(HOME)/.local/bin
 AGENT    := $(HOME)/Library/LaunchAgents/$(BUNDLE_ID).plist
 LABEL    := $(BUNDLE_ID)
-LOGPATH  := $(HOME)/Library/Logs/inkdriver.log
 
 .PHONY: build debug app run-app probe watch descriptor dry-run run \
         install install-agent install-app uninstall-agent clean
@@ -60,37 +59,6 @@ run-app: app
 
 # --- CLI tools -------------------------------------------------------------
 
-inktest: build
-	$(SWIFT) build -c release --product xppen-inktest
-
-# InkTest as a proper application bundle. It reads as a normal app: Dock icon,
-# application identity, ordinary window activation. Running the same code as a bare
-# executable gives a window with no bundle behind it, which does not repaint or
-# activate like a real window.
-INKTEST_NAME := InkTest
-INKTEST_ID   := com.local.inktest
-INKTEST      := .build/$(INKTEST_NAME).app
-INKTEST_BIN  := $(INKTEST)/Contents/MacOS/$(INKTEST_NAME)
-
-inktest-app: build
-	rm -rf $(INKTEST)
-	mkdir -p $(INKTEST)/Contents/MacOS $(INKTEST)/Contents/Resources
-	cp $(BIN)/xppen-inktest $(INKTEST_BIN)
-	sed -e "s|@APP_NAME@|$(INKTEST_NAME)|g" \
-	    -e "s|@EXECUTABLE@|$(INKTEST_NAME)|g" \
-	    -e "s|@BUNDLE_ID@|$(INKTEST_ID)|g" \
-	    Support/InkTest-Info.plist.in > $(INKTEST)/Contents/Info.plist
-	printf 'APPL????' > $(INKTEST)/Contents/PkgInfo
-	plutil -lint $(INKTEST)/Contents/Info.plist
-	codesign --force --sign - $(INKTEST) 2>/dev/null || true
-	@echo "built $(INKTEST)"
-
-inktest-run: inktest-app
-	mkdir -p $(HOME)/Applications
-	rm -rf $(HOME)/Applications/$(INKTEST_NAME).app
-	cp -R $(INKTEST) $(HOME)/Applications/$(INKTEST_NAME).app
-	@echo "installed $(HOME)/Applications/$(INKTEST_NAME).app"
-
 probe: build
 	$(BIN)/xppen-probe
 
@@ -118,17 +86,16 @@ install: build
 # Install the menu-bar app into ~/Applications and start it at login.
 install-app: app
 	mkdir -p $(HOME)/Applications
-	rm -rf $(HOME)/Applications/$(APP)
-	cp -R $(APP) $(HOME)/Applications/$(APP)
+	rm -rf $(HOME)/Applications/$(APP_NAME).app
+	cp -R $(APP) $(HOME)/Applications/$(APP_NAME).app
 	mkdir -p $(HOME)/Library/LaunchAgents
-	@sed -e "s|@BINARY@|$(HOME)/Applications/$(APP)/Contents/MacOS/$(APP_NAME)|g" \
-	     -e "s|@LOGPATH@|$(LOGPATH)|g" \
+	@sed -e "s|@BINARY@|$(HOME)/Applications/$(APP_NAME).app/Contents/MacOS/$(APP_NAME)|g" \
 	     -e "s|@LABEL@|$(LABEL)|g" \
 	     Support/launch-agent.plist.in > $(AGENT)
 	plutil -lint $(AGENT)
 	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null || true
 	launchctl bootstrap gui/$$(id -u) $(AGENT)
-	@echo "installed $(HOME)/Applications/$(APP) and registered login agent"
+	@echo "installed $(HOME)/Applications/$(APP_NAME).app and registered login agent"
 
 uninstall-agent:
 	-launchctl bootout gui/$$(id -u)/$(LABEL)

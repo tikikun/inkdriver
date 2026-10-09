@@ -6,7 +6,6 @@
   Installed by `make install-app`, which substitutes:
     @LABEL@    the launchd label (bundle identifier)
     @BINARY@   the executable inside the installed .app
-    @LOGPATH@  a log file under ~/Library/Logs
 
   KeepAlive is only set for the crash case: a driver that exits because a
   permission is missing would otherwise restart in a tight loop.
@@ -31,11 +30,6 @@
         <key>SuccessfulExit</key>
         <false/>
     </dict>
-
-    <key>StandardOutPath</key>
-    <string>@LOGPATH@</string>
-    <key>StandardErrorPath</key>
-    <string>@LOGPATH@</string>
 
     <key>ProcessType</key>
     <string>Interactive</string>

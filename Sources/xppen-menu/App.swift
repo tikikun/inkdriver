@@ -249,40 +249,18 @@ extension JSONEncoder {
     }
 }
 
-/// Diagnostics. Writes to stdout (which launchd may capture) *and* to
-/// ~/Library/Logs/inkdriver.log so that `open`-launched runs are logged too.
-/// If stdout is already that same file we skip the second write, otherwise every
-/// line would appear twice.
+/// Diagnostics, for a human running the app from a terminal.
+///
+/// Nothing is written to disk. This driver keeps no log file and no diagnostics
+/// file, which is part of what the README promises: the only thing it ever writes is
+/// your own configuration. When the app is launched normally, by Finder or launchd,
+/// stdout is not a terminal and this is silent. Run `.build/release/xppen-menu` or
+/// `xpdriverd` from a shell to see the messages.
 func inkLog(_ message: String) {
+    guard isatty(STDOUT_FILENO) == 1 else { return }
     let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
     print(line, terminator: "")
     fflush(stdout)
-
-    let path = NSHomeDirectory() + "/Library/Logs/inkdriver.log"
-    guard let data = line.data(using: .utf8) else { return }
-    if stdoutIsSameFile(as: path) { return }
-
-    if let handle = FileHandle(forWritingAtPath: path) {
-        defer { try? handle.close() }
-        _ = try? handle.seekToEnd()
-        try? handle.write(contentsOf: data)
-    } else {
-        try? data.write(to: URL(fileURLWithPath: path))
-    }
-}
-
-/// True when file descriptor 1 already points at `path` (same device + inode).
-private func stdoutIsSameFile(as path: String) -> Bool {
-    var outStat = Darwin.stat()
-    guard fstat(STDOUT_FILENO, &outStat) == 0 else { return false }
-
-    let fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
-    guard fd >= 0 else { return false }
-    defer { close(fd) }
-
-    var fileStat = Darwin.stat()
-    guard fstat(fd, &fileStat) == 0 else { return false }
-    return outStat.st_dev == fileStat.st_dev && outStat.st_ino == fileStat.st_ino
 }
 
 // MARK: - Menu bar

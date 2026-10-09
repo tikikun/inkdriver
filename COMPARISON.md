@@ -120,7 +120,7 @@ otool -L .build/release/xpdriverd
 | --- | --- | --- |
 | Always-on diagnostic process | `PenTabletInfo.app`, plus `XTouchDriver.app` | none |
 | GUI ships a "Diagnosis Tool" | yes (`Diagnosis`, `CollectDataChecked`, `diagnosis_*`) | no |
-| What this repo ships instead | none | `xppen-probe`, which prints to your terminal and exits, and `InkTest`, an ordinary app window |
+| What this repo ships instead | none | `xppen-probe`: a read-only tool you run by hand, which prints to your terminal and exits |
 
 ---
 
@@ -185,7 +185,7 @@ Being straight about the gaps:
 | Claim | Evidence |
 | --- | --- |
 | Report layout, pressure is 14-bit, tilt ±60, express-key bitmask | measured with `xppen-probe`, cross-checked against the vendor's `CTablet::OnPostTabletMouseData`. See [PROTOCOL.md](docs/PROTOCOL.md) |
-| Event injection is correct | `InkTest` is an ordinary AppKit application; drawing with the pen produces ink, at `subtype=1`, with real pressure |
+| Event injection is correct | verified end to end in a plain AppKit application: drawing with the pen produces ink at `subtype=1` with real pressure |
 | Mapping maths | `xppen-probe --check-workspace` prints all four corners for every mode, plus rotations and display-ID migration |
 | Config parser | `xppen-probe --check-bindings` |
 | Vendor endpoints and gating | static analysis of the shipped binaries; quoted in the summary above |

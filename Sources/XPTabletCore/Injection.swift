@@ -282,7 +282,7 @@ public final class EventInjector {
     /// kCGTabletEventPointPressure, and every browser reads NSEvent.pressure. With
     /// only the tablet field set, a web app sees pressure 1.0 whenever the button
     /// is down and 0 otherwise, however hard the pen is pressed. Measured both ways
-    /// by watching pressure in `InkTest`; see docs/PROTOCOL.md.
+    /// by watching the pressure readout in the pen test window; see docs/PROTOCOL.md.
     public var alsoSetMousePressure = true
     /// Handles actions that need the host UI (open panel, switch monitor, …).
     public var onControlAction: ((ControlAction) -> Void)?

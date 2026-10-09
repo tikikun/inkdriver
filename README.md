@@ -26,7 +26,9 @@ CoreGraphics (to inject events).
 
 - The original driver was buggy for me: shortcuts fired unexpectedly and it clashed with other input software.
 - I watched it send traffic to XP-Pen servers (`data.tr.x-pen.com.cn`, `driverinfo.xp-pen.com.cn`). The collection path is off by default in 4.0.18, but that is not knowable from outside.
-- Privacy by construction: no network API is imported at all, so there is no switch to trust.
+- Privacy by construction: no network API is imported at all, so there is no switch to
+  trust. It keeps no log file and no diagnostics file either. The only thing it ever
+  writes is your own configuration.
 - I wanted to audit it. 3,541 lines, 48 Apple API entry points, readable in one sitting.
 - No source ships with the vendor driver, so nothing can be fixed when it breaks.
 - Hardware outlives support. The tablet works; the software around it will not be updated forever.
@@ -105,10 +107,9 @@ or leave it at the default 84 for exact vendor parity.
 ## Status
 
 **Working, and verified against real hardware.** The protocol was measured with
-`xppen-probe` and cross-checked against the vendor driver's own code, and the
-event path is verified in `InkTest`: an ordinary AppKit application that receives
-what the system injects and draws it, so what it shows is what any drawing
-application sees.
+`xppen-probe` and cross-checked against the vendor driver's own code, and the event
+path was verified end to end in a plain AppKit application: drawing with the pen
+produces ink, at `subtype=1`, carrying real pressure and tilt.
 
 | Feature | State |
 | --- | --- |
@@ -199,28 +200,6 @@ menu-bar app and the headless CLI run exactly the same code:
 | `xppen-menu` | the menu-bar app (installed as `InkDriver.app`) |
 | `xpdriverd` | headless driver, for launchd or scripting |
 | `xppen-probe` | read-only protocol probe |
-| `xppen-inktest` | a drawing window for testing the pen and the eraser by hand |
-
-### InkTest
-
-A separate, ordinary AppKit application for checking the pen and the eraser by hand.
-It is the released artefact of this repository.
-
-```bash
-make inktest-run      # build, install to ~/Applications, open
-```
-
-It draws pressure-scaled ink, removes ink for eraser strokes, shows the tool, and
-follows the pen with a grey ring in eraser mode. It deliberately does **not** link
-`XPTabletCore`, so it is an independent check: what it shows is what any drawing
-application receives.
-
-It exists because a browser cannot test the eraser. The DOM's `pointerType` is only
-ever `pen`, `mouse` or `touch`, so a web page reports success whatever the driver
-does. Eraser state travels in the tablet proximity event's pointer type, which AppKit
-surfaces as `NSEvent.pointingDeviceType` (1 pen, 3 eraser) on the `tabletProximity:`
-callback, and that is what this app tracks, the same way Firefox and other
-applications do.
 
 ## Build and install
 
@@ -261,10 +240,9 @@ which survives rebuilds, so you grant the permission once.
 | **Input Monitoring** | opening the tablet's HID interface | `failed to open the tablet` |
 | **Accessibility** | posting synthetic events | driver runs, cursor never moves |
 
-The app logs its own TCC state at launch, so this is never a mystery:
-
-```
-[09:37:53] accessibility: granted
+The app shows its own TCC state in the settings window, so this is never a mystery.
+Run `xpdriverd` from a terminal and the same messages print to your screen; nothing is
+written to disk, which is why there is no log file to check.
 [09:37:54] seized digitizer[page=0xd usage=0x2]
 [09:37:54] handshake sent: 02 B0 04
 [09:37:54] tablet connected
@@ -407,12 +385,12 @@ the cursor stays where it was because no move events are posted.
 | --- | --- |
 | `no tablet found` | another driver holds the interface: `pgrep -fl 'XPPen\|XTouchDriver\|PenTabletInfo'` |
 | `failed to open the tablet` | Input Monitoring not granted to this binary |
-| Cursor moves but nothing logs, or everything is doubled | macOS is also reading the tablet: the fallback mouse/digitizer interfaces must be seized |
+| Cursor moves twice, or jumps back and forth | macOS is also reading the tablet: the fallback mouse/digitizer interfaces must be seized |
 | Cursor drifts on its own | same as above: `seizeFallbackInterfaces` |
 | **Pen freezes after clicking the menu bar** | HID was registered for `kCFRunLoopDefaultMode` only; opening a menu runs AppKit's event-tracking loop, which is a *different* mode. Must be scheduled on `kCFRunLoopCommonModes` |
 | Driver runs, cursor never moves | Accessibility not granted, or granted to a stale copy |
 | Pen clicks or draws while hovering | contact was derived from pressure. The sensor leaks while hovering (877 measured on this unit) and the tip-down range starts at 13, so the two overlap and only the tip switch can separate them |
-| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Draw in `InkTest` and watch the pressure readout |
+| Cursor moves, no pressure in apps | `kCGMouseEventSubtype` not set to 1 (`TabletPoint`), or pressure written only to `kCGTabletEventPressure`. AppKit and the browsers read `NSEvent.pressure`, which comes from `kCGMouseEventPressure`. Watch the pressure readout in the pen test window |
 | No pen in Firefox, everything else fine | **Fixed.** See `docs/PROTOCOL.md` for the layout detail. Previously: Firefox sets its pen flag only from `tabletProximity:`, which AppKit raises only for a native `NSTabletProximity` event. A CGEvent with that subtype arrives as a plain `mouseMoved` instead (measured), and `IOHIDPostEvent` produces no such event on this macOS (measured). Earlier details: Firefox reports `pointerType: "mouse"` and pressure `0`/`0.5` from our events, while the same Firefox instance reports `pen` with 47 distinct pressure values from the vendor's, measured with an identical harness. Our proximity event reports the same `pointingDeviceType`, capability mask and vendor/tablet ids as the vendor's, so the difference is not yet identified. See docs/PROTOCOL.md |
 | No pressure in Firefox | Firefox ignores tablet data until told a pen is in range, by a mouse event with subtype 2 (`TabletProximity`) carrying the proximity fields. The driver sends that when the pen **enters range**, so with Firefox already focused, lift the pen clear of the tablet and bring it back |
 | No pressure in a browser, but pressure in a native app | the same thing, from the other direction: browsers always use `NSEvent.pressure`, so the mouse pressure field is not optional |

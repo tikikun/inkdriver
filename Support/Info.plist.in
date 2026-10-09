@@ -7,6 +7,7 @@
     @APP_NAME@    human-readable name, e.g. "InkDriver"
     @EXECUTABLE@  Mach-O name inside Contents/MacOS
     @BUNDLE_ID@   reverse-DNS identifier
+  @VERSION@     not used: the version is written here directly
 
   LSUIElement makes it a menu-bar-only application: no Dock icon and no app
   switcher entry, the same shape the vendor's XPPenTablet.app uses in "/mini"
@@ -30,7 +31,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>0.0.1</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
