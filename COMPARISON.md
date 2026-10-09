@@ -82,6 +82,7 @@ MAC-address API anywhere in the binary.
 | Event tap installed | yes (its mask excludes key-down/key-up, so it cannot log keystrokes) | **no tap at all** |
 | Update mechanism | phones home on a schedule | none; `git pull` |
 | Telemetry you can audit | only by disassembling | read the source |
+| Licence | proprietary | **GPL-3.0-or-later** |
 
 To be fair to the vendor: the collection path is **off by default** and inert in
 this build, and the event tap cannot read keystrokes — both verified in
@@ -150,7 +151,7 @@ otool -L .build/release/xpdriverd
 | Wireless / BLE | ✅ (other models) | ❌ (this tablet is wired) |
 | Supports ~120 tablet models | ✅ | ❌ (this one) |
 | Self-updating | ✅ | ❌ (by design) |
-| Source available | ❌ | ✅ |
+| Source available | ❌ | ✅ (GPL-3.0-or-later) |
 | Auditable without a disassembler | ❌ | ✅ |
 
 ### What the vendor does that we don't

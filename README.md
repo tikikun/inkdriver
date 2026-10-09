@@ -284,18 +284,27 @@ the cursor stays where it was because no move events are posted.
 
 ## Licence
 
-[MIT](LICENSE).
+**GNU General Public License v3.0 or later** — see [LICENSE](LICENSE). Each source
+file carries an `SPDX-License-Identifier: GPL-3.0-or-later` tag.
+
+In short: use it, study it, change it, share it — but if you distribute a modified
+version, it has to stay free software under the same terms, with source. That is
+the point: a driver that a manufacturer can drop should not be one that a user
+cannot pick up. If you fix something for your own tablet, the next person gets it.
+
+`GPL-3.0-or-later` was chosen over `GPL-2.0-only` for compatibility: the main
+other implementation for this hardware, OpenTabletDriver, is LGPL-3.0, and LGPL-3.0
+code can be combined with GPL-3.0 work. Nothing from it is included today, but the
+door stays open.
+
+### Provenance
 
 No vendor code and no OpenTabletDriver code is included. What this project uses
 are **measured facts about the hardware** — HID report layouts, a handshake byte
 sequence, coordinate ranges, and the CoreGraphics event field numbers — all
 obtained by observation and documented with their evidence in
 [docs/PROTOCOL.md](docs/PROTOCOL.md). Facts about a device are not creative
-expression; the implementation here is independent.
-
-OpenTabletDriver is LGPL-3.0. Its published configuration for this model was read
-to cross-check one byte sequence, and nothing from it was copied. If you do copy
-from it later, those obligations attach to your derived work.
+expression; the implementation here is independent and freely licensed.
 
 ## Status of this repository
 
