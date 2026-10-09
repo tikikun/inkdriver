@@ -200,6 +200,7 @@ menu-bar app and the headless CLI run exactly the same code:
 | `xpdriverd` | headless driver, for launchd or scripting |
 | `xppen-probe` | read-only protocol probe |
 | `xppen-tapcheck` | verifies injected events reach the event stream |
+| `xppen-inktest` | a drawing window for testing the pen and the eraser by hand |
 
 ## Build and install
 

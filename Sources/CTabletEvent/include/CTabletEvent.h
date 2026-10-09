@@ -20,9 +20,15 @@ int xp_hid_system_connect(void);
 
 /// Post a native tablet proximity event (NX_TABLETPROXIMITY).
 /// Returns the IOReturn, or -1 if the connection is unusable.
+/// The identity must be the same one the tablet point events carry. An application
+/// matches a proximity announcement to the strokes that follow by device id, and if
+/// the two disagree it cannot tell what is drawing, so it reports an unknown pointing
+/// device type and eraser mode never arrives. Pass the same deviceID the point events
+/// use, and the pointer type (1 pen, 3 eraser).
 int xp_post_tablet_proximity(int connect, int x, int y, int entering,
                              int pointerType, int vendorID, int tabletID,
-                             int pointerID, int capabilityMask);
+                             int pointerID, int capabilityMask,
+                             int deviceID, int systemTabletID, int vendorPointerType);
 
 /// Post a native tablet point event (NX_TABLETPOINTER).
 int xp_post_tablet_point(int connect, int x, int y, int tabletX, int tabletY,

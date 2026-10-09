@@ -26,7 +26,8 @@ int xp_hid_system_connect(void) {
 
 int xp_post_tablet_proximity(int connect, int x, int y, int entering,
                              int pointerType, int vendorID, int tabletID,
-                             int pointerID, int capabilityMask) {
+                             int pointerID, int capabilityMask,
+                             int deviceID, int systemTabletID, int vendorPointerType) {
     if (connect <= 0) {
         return -1;
     }
@@ -51,9 +52,13 @@ int xp_post_tablet_proximity(int connect, int x, int y, int entering,
     *(unsigned short *)(buf + 0x00) = (unsigned short)vendorID;
     *(unsigned short *)(buf + 0x02) = (unsigned short)tabletID;
     *(unsigned short *)(buf + 0x04) = (unsigned short)pointerID;
-    *(unsigned short *)(buf + 0x06) = 5;    // system-assigned device id
-    *(unsigned short *)(buf + 0x08) = 2;    // system-assigned tablet id
-    *(unsigned short *)(buf + 0x0a) = 2082; // vendor-defined pointer type
+    // Same identity as the tablet point events. These used to be the vendor's
+    // numbers, hardcoded, which made the proximity announcement describe a device
+    // that never sent a stroke: AppKit then reported an unknown pointing device type
+    // and an application could not tell pen from eraser.
+    *(unsigned short *)(buf + 0x06) = (unsigned short)deviceID;
+    *(unsigned short *)(buf + 0x08) = (unsigned short)systemTabletID;
+    *(unsigned short *)(buf + 0x0a) = (unsigned short)vendorPointerType;
     *(unsigned int *)(buf + 0x18) = (unsigned int)capabilityMask;
     buf[0x1c] = (unsigned char)pointerType;
     buf[0x1d] = (unsigned char)(entering ? 1 : 0);

@@ -43,21 +43,29 @@ public final class TabletEventPoster {
         isAvailable = handle > 0
     }
 
-    private static let penPointerType: Int32 = 1   // NX_TABLET_POINTER_PEN
+    private static let penPointerType: Int32 = 1     // NX_TABLET_POINTER_PEN
+    private static let eraserPointerType: Int32 = 3  // NX_TABLET_POINTER_ERASER
     private static let capabilityMask: Int32 = 0x17c7  // vendor constant
 
     /// Announce that the pen has entered or left the tablet's range.
     @discardableResult
-    public func postProximity(entering: Bool, at point: CGPoint) -> Int32 {
+    public func postProximity(entering: Bool, at point: CGPoint, eraser: Bool = false) -> Int32 {
         guard connect > 0 else { return -1 }
+        // One identity everywhere: the proximity announcement has to carry the same
+        // device id as the point events, or the application cannot associate the two
+        // and reports an unknown pointing device type. The eraser is a pointer type,
+        // 3 rather than 1, on the same device.
         return xp_post_tablet_proximity(
             connect,
             Int32(point.x.rounded()), Int32(point.y.rounded()),
             entering ? 1 : 0,
-            Self.penPointerType,
+            eraser ? Self.eraserPointerType : Self.penPointerType,
             Int32(Device.vendorID), Int32(Device.productID),
-            1,
-            Self.capabilityMask
+            Int32(Device.tabletDeviceID),
+            Self.capabilityMask,
+            Int32(Device.tabletDeviceID),
+            Int32(Device.tabletDeviceID),
+            eraser ? Self.eraserPointerType : Self.penPointerType
         )
     }
 }

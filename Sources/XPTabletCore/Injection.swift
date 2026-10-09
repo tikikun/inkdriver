@@ -443,7 +443,7 @@ public final class EventInjector {
         // only from `tabletProximity:`. The vendor posts a genuine native tablet event
         // through IOHIDPostEvent for exactly this, so do the same.
         if Self.nativePoster.isAvailable {
-            Self.nativePoster.postProximity(entering: entering, at: point)
+            Self.nativePoster.postProximity(entering: entering, at: point, eraser: pen.eraser)
         }
     }
 

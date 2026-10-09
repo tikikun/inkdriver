@@ -60,6 +60,10 @@ run-app: app
 
 # --- CLI tools -------------------------------------------------------------
 
+inktest: build
+	$(SWIFT) build -c release --product xppen-inktest
+	@echo "run it with: .build/release/xppen-inktest"
+
 probe: build
 	$(BIN)/xppen-probe
 

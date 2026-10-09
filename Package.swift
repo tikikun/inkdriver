@@ -50,6 +50,12 @@ let package = Package(
             name: "xppen-menu",
             dependencies: ["XPTabletCore"],
             path: "Sources/xppen-menu"
+        ),
+        // Deliberately has no dependencies. It is an ordinary AppKit application, so
+        // what it reports is what any drawing application receives.
+        .executableTarget(
+            name: "xppen-inktest",
+            path: "Sources/xppen-inktest"
         )
     ]
 )
