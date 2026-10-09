@@ -115,8 +115,6 @@ NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mou
                               location: event.locationInWindow))
     return event
 }
-var proximityAvailable = false
-var proximityResult: Int32 = -999
 view.onEvent = { received.append($0) }
 
 // Cocoa screen coordinates put the origin at the bottom-left of the primary
@@ -189,10 +187,7 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
     // A native tablet proximity event, the thing Firefox gates on.
     // Post proximity BOTH ways and see which, if either, arrives as a native
     // tablet event (type 24) rather than a mouse event with a tablet subtype.
-    let tabletEvents = TabletEventPoster()
-    proximityAvailable = tabletEvents.isAvailable
-    script.append((0.00, { proximityResult = tabletEvents.postProximity(entering: true, at: base) }))
-    script.append((0.06, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
+    script.append((0.00, { injector.postProximity(entering: true, at: base, pen: pen(0, tip: false)) }))
     script.append((0.06, { injector.move(to: base, pen: pen(0, tip: false)) }))
     script.append((0.12, { injector.penDown(at: base, pen: pen(ramp[0], tip: true)) }))
     for (index, pressure) in ramp.dropFirst().enumerated() {
@@ -232,8 +227,6 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
     let drags = ours.filter { $0.typeRaw == 6 }
     let tablet = ours.filter { $0.subtype == .tabletPoint }
     print("  expected pressures:    " + ramp.map { String(format: "%.3f", Double($0) / Double(Device.maxPressure)) }.joined(separator: ", "))
-    print("  IOHIDSystem connection: \(proximityAvailable ? "opened" : "FAILED to open")")
-    print("  postProximity returned: \(proximityResult)")
     let viewPairs = Set(ours.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })
     print("  view received:         " + viewPairs.sorted().joined(separator: ", "))
     let monPairs = Set(monitored.map { "\(typeName($0.typeRaw))/subtype\($0.subtype.rawValue)" })

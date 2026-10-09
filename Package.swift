@@ -15,18 +15,9 @@ let package = Package(
     name: "XPPenNativeDriver",
     platforms: [.macOS(.v14)],
     targets: [
-        // C shim: the hidsystem headers are not importable from Swift, and
-        // IOHIDPostEvent is the only way to create a native tablet event.
-        .target(
-            name: "CTabletEvent",
-            path: "Sources/CTabletEvent",
-            publicHeadersPath: "include",
-            linkerSettings: [.linkedFramework("IOKit")]
-        ),
         .target(
             name: "XPTabletCore",
-            dependencies: ["CTabletEvent"],
-            path: "Sources/XPTabletCore"
+                        path: "Sources/XPTabletCore"
         ),
         .executableTarget(
             name: "xppen-probe",
