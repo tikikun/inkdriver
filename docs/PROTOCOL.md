@@ -172,6 +172,46 @@ Verified on hardware: with eraser mode bound to barrel button 1, the pointing de
 type reported to a focused application goes `1 -> 3` on the press and back to `1` on
 the release, and no right-button events are generated.
 
+### Toggle and hold
+
+The vendor implements two eraser behaviours, and the difference is which key the
+action sends rather than anything in the protocol:
+
+```c
+void CEventPort::HIDPostKey(CEventPort *this, ushort keycode, bool isDown) {
+    if (keycode == 0xe) {                  /* 14, the E key */
+        _m_Eraser = isDown;                /* hold: set from the key state */
+    } else if (keycode == 0xd && isDown) { /* 13, the W key */
+        _m_Eraser = _m_Eraser ^ 1;         /* toggle on press only */
+    }
+}
+```
+
+`0x0e` is `kVK_ANSI_E`, the eraser shortcut in essentially every drawing
+application, and `0x0d` is `kVK_ANSI_W`, the brush shortcut. So the vendor's eraser
+button both switches its own pointer type and presses the shortcut the application
+already understands, which is why its eraser button works in applications that never
+look at the tablet pointer type. Marking that button in the vendor's UI is enough to
+get both. This driver offers the two behaviours as `eraser-hold` and `eraser`; if an
+application only responds to the shortcut, bind the button to the key instead
+(`key:14` for a held E, which our key bindings already treat as hold and release).
+
+### A button held when the pen leaves range
+
+Held bindings have to be released when the pen goes out of range, because the tablet
+reports out-of-range instead of reporting the button coming up. Discarding the
+tracked button state silently, which this driver used to do, leaves anything
+hold-shaped stuck on: eraser-hold stays in eraser mode, wheel mode stays in scroll
+mode, and a held mouse button is never released. The out-of-range path now dispatches
+the release before resetting. Express keys are deliberately not reset there, since
+their reports do not depend on the pen being in range and a key that is down is still
+physically held.
+
+Measured: pressing the held eraser button and drawing a stroke with the pointing
+device type then lifting the pen away while the button is still down produces
+`1 -> 3 -> 1` across the strokes with an off message for every on message, rather
+than remaining stuck at 3.
+
 The vendor excludes `report[1] >= 0xf0` and `(report[1] & 0xf0) == 0xb0` from its
 pen path, so command replies must not be parsed as pen data.
 

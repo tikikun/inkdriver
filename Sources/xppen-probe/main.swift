@@ -398,7 +398,8 @@ func parseOptions() -> Options {
             // Regression check for the config parser: every form the UI and the
             // sample config can write must round-trip.
             let samples = [
-                "none", "wheel", "eraser", "panel", "monitor", "precision",
+                "none", "wheel", "eraser", "eraser-hold", "eraserhold", "hold:eraser",
+                "panel", "monitor", "precision", "Eraser (hold)", "Eraser (press to toggle)",
                 "mouse:right", "mouse:middle", "double:left",
                 "scroll:up", "scroll:down", "scroll:left", "scroll:right",
                 "key:1+cmd", "key:6+cmd,shift", "action:207", "action:210",

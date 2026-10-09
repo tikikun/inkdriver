@@ -67,6 +67,12 @@ public final class Driver {
     public private(set) var wheelModeActive = false
     public private(set) var precisionActive = false
     public private(set) var eraserOverride = false
+    /// Press-to-toggle eraser state. Kept separate from the held state so that
+    /// releasing a hold restores what the user had before reaching for it, rather
+    /// than always returning to the pen.
+    private var eraserToggled = false
+    /// Eraser only while the bound button is down.
+    private var eraserHeld = false
     public private(set) var lastPressure: UInt16 = 0
 
     /// When the last input report arrived. Used to notice the tablet going quiet.
@@ -335,6 +341,14 @@ public final class Driver {
                     injector.postProximity(entering: false, at: lastPoint, pen: toolReport(eraser: eraserOverride))
                 }
             }
+            // Release any pen button bindings that were still down. The pen can leave
+            // range while a button is held, and no release is reported in that case,
+            // so a hold-style binding would stay stuck on forever. Express keys are
+            // deliberately not reset here: their reports are independent of pen range,
+            // so a key that is down is still physically held.
+            for (index, wasDown) in lastPenButton.enumerated() where wasDown {
+                applyBinding(config.penButtonBinding(index), isDown: false)
+            }
             lastPenButton = [false, false]
             lastRaw = nil
             if wheelModeActive {
@@ -468,21 +482,13 @@ public final class Driver {
             }
         case .toggleEraser:
             if isDown {
-                let wasEraser = eraserOverride
-                eraserOverride.toggle()
-                // Switching tools has to be announced. Applications read the pointing
-                // device type from a proximity event, so a tool change is itself a
-                // proximity event: leave with the old type, re-enter with the new one.
-                // The vendor does exactly this, calling its proximity post twice with
-                // the flag flipped in between. Without it the moment is invisible and
-                // a bound eraser button does nothing.
-                if !dryRun, inProximity {
-                    injector.postProximity(entering: false, at: lastPoint,
-                                           pen: toolReport(eraser: wasEraser))
-                    injector.postProximity(entering: true, at: lastPoint,
-                                           pen: toolReport(eraser: eraserOverride))
-                }
-                emit(.message("eraser mode \(eraserOverride ? "on" : "off")"))
+                eraserToggled.toggle()
+                applyEraserState()
+            }
+        case .eraserHold:
+            if eraserHeld != isDown {
+                eraserHeld = isDown
+                applyEraserState()
             }
         default:
             if !dryRun {
@@ -513,6 +519,29 @@ public final class Driver {
             precisionActive.toggle()
             emit(.message("precision mode \(precisionActive ? "on" : "off")"))
         }
+    }
+
+    /// Recompute the effective tool from the toggled and held states and, when it
+    /// changed, tell applications about it.
+    ///
+    /// Switching tools has to be announced. Applications read the pointing device
+    /// type from a proximity event, so a tool change is itself a proximity event:
+    /// leave with the old type, re-enter with the new one. The vendor does exactly
+    /// this, posting its proximity event twice with the flag flipped in between, and
+    /// without it the change is invisible and a bound eraser button does nothing.
+    private func applyEraserState() {
+        let wasEraser = eraserOverride
+        // Held wins over toggled, so a hold that starts while eraser mode is already
+        // sticky leaves it on rather than flipping it off.
+        eraserOverride = eraserToggled || eraserHeld
+        guard eraserOverride != wasEraser else { return }
+        if !dryRun, inProximity {
+            injector.postProximity(entering: false, at: lastPoint,
+                                   pen: toolReport(eraser: wasEraser))
+            injector.postProximity(entering: true, at: lastPoint,
+                                   pen: toolReport(eraser: eraserOverride))
+        }
+        emit(.message("eraser mode \(eraserOverride ? "on" : "off")\(eraserHeld ? " (held)" : "")"))
     }
 
     /// Set by the host UI to handle actions that need a window (e.g. open settings).

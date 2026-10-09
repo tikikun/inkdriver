@@ -353,9 +353,16 @@ A pre-workspace config file (flat `display` / `areaScale` / `areaOffsetX` /
 automatically and keeps working unchanged.
 
 Bindings accept a canonical form (`mouse:right`, `double:left`, `scroll:up`,
-`key:8+cmd`, `wheel`, `eraser`, `panel`, `monitor`, `precision`,
+`key:8+cmd`, `wheel`, `eraser`, `eraser-hold`, `panel`, `monitor`, `precision`,
 `action:210`) or any name from the vendor catalogue. `xppen-probe
 --check-bindings` prints the whole table plus the action IDs.
+
+`eraser` and `eraser-hold` differ in when eraser mode ends. `eraser` toggles on
+each press and stays until the next press, which suits a button you do not want to
+keep holding while drawing. `eraser-hold` is eraser only while the button is down
+and restores whatever the state was on release. The vendor has both, as its W and E
+keys respectively (`_m_Eraser ^= 1` on a press, `_m_Eraser = isDown` on a set), and
+the tool change is announced to applications the same way either way.
 
 `wheel` is hold-to-scroll: while the bound key is held, each report scrolls by
 exactly the distance the pen moved (1 point of pointer movement = 1 pixel of

@@ -96,7 +96,13 @@ public enum Binding: Equatable {
     /// the cursor. The vendor has the same mode: `RelativeCoords Speed="5"` and
     /// the x0.2 scroll step in `CEventPort::TabletPointToScreenPoint`.
     case wheelMode
+    /// Press to switch to eraser mode, press again to switch back. The vendor has
+    /// this as its W key, which toggles, and it re-announces the tool each time.
     case toggleEraser
+    /// Eraser mode only while held, restoring whatever the state was on release.
+    /// The vendor has this as its E key, the eraser shortcut, and sets its pointer
+    /// type straight from the key state: `_m_Eraser = isDown`.
+    case eraserHold
     case system(SystemAction)
     case control(ControlAction)
 
@@ -107,7 +113,8 @@ public enum Binding: Equatable {
     ///   "double:left"
     ///   "scroll:up" / "scroll:down" / "scroll:left" / "scroll:right"
     ///   "key:KEYCODE" / "key:KEYCODE+cmd,shift,alt,ctrl"
-    ///   "eraser"  |  "wheel"  |  "panel"  |  "monitor"  |  "precision"
+    ///   "eraser" (press to toggle)  |  "eraser-hold" (eraser only while held)
+  ///   "wheel"  |  "panel"  |  "monitor"  |  "precision"
     ///   "system:screenKeyboard" / "system:virtualBoard"
     ///   "action:210"   — any vendor Actid
     ///   "Right click"  — any catalogue name
@@ -120,6 +127,7 @@ public enum Binding: Equatable {
         switch lower {
         case "wheel": return .wheelMode
         case "eraser": return .toggleEraser
+        case "eraserhold", "eraser-hold", "hold:eraser": return .eraserHold
         case "panel": return .control(.showDriverPanel)
         case "monitor": return .control(.switchMonitor)
         case "precision": return .control(.togglePrecision)
@@ -164,6 +172,8 @@ public enum Binding: Equatable {
             }
         case "eraser":
             return .toggleEraser
+        case "eraser hold", "eraser-hold":
+            return .eraserHold
         case "wheel":
             return .wheelMode
         case "panel":
@@ -219,6 +229,7 @@ public enum Binding: Equatable {
             return "scroll:right"
         case .wheelMode: return "wheel"
         case .toggleEraser: return "eraser"
+        case .eraserHold: return "eraser-hold"
         case .system(let a): return "system:\(a.rawValue)"
         case .control(.showDriverPanel): return "panel"
         case .control(.switchMonitor): return "monitor"
@@ -343,7 +354,7 @@ public final class EventInjector {
         case .none:
             return
 
-        case .toggleEraser:
+        case .toggleEraser, .eraserHold:
             return  // driver state, handled by Driver
 
         case .wheelMode:

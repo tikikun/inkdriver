@@ -370,6 +370,10 @@ struct MenuContent: View {
                 }
                 Button("Wheel mode (hold to scroll)") { onSelect("wheel") }
             }
+            Menu("Eraser") {
+                Button("Eraser (hold the button to erase)") { onSelect("eraser-hold") }
+                Button("Eraser (press to toggle)") { onSelect("eraser") }
+            }
             Menu("Device functions") {
                 ForEach(ActionCatalog.deviceFunctions) { action in
                     Button(action.name) { onSelect(action.binding.configString) }

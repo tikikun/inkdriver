@@ -99,7 +99,7 @@ public enum ActionCatalog {
         Action(id: 26, name: "[", binding: .key(keyCode: Key.leftBracket, flags: [])),
 
         // --- pen / driver functions (vendor Actions.27, 101 ... 131) ---
-        Action(id: 27, name: "Eraser", binding: .toggleEraser),
+        Action(id: 27, name: "Eraser (hold)", binding: .eraserHold),
         Action(id: 101, name: "Show driver panel", binding: .control(.showDriverPanel)),
         Action(id: 102, name: "Switch monitor", binding: .control(.switchMonitor)),
         Action(id: 103, name: "Pen / Eraser", binding: .toggleEraser),
@@ -127,6 +127,7 @@ public enum ActionCatalog {
         Action(id: 212, name: "Scroll left", binding: .scroll(dx: 1, dy: 0)),
         Action(id: 213, name: "Scroll right", binding: .scroll(dx: -1, dy: 0)),
         Action(id: 214, name: "Wheel mode (hold to scroll)", binding: .wheelMode),
+        Action(id: 215, name: "Eraser (press to toggle)", binding: .toggleEraser),
     ]
 
     public static func action(id: Int) -> Action? { all.first { $0.id == id } }
@@ -139,5 +140,5 @@ public enum ActionCatalog {
     public static var keyboardShortcuts: [Action] { all.filter { $0.id <= 26 } }
     public static var deviceFunctions: [Action] { all.filter { (27...131).contains($0.id) } }
     public static var mouseAndScroll: [Action] { all.filter { $0.id >= 201 && $0.id <= 213 } }
-    public static var special: [Action] { all.filter { $0.id == 214 } }
+    public static var special: [Action] { all.filter { $0.id == 214 || $0.id == 215 } }
 }
