@@ -58,6 +58,34 @@ otool -Iv .build/release/xpdriverd | grep '^0x' | awk '{print $NF}' \
 See **[COMPARISON.md](COMPARISON.md)** for the full breakdown, including an honest
 list of what the vendor driver does that this one does not.
 
+### Performance
+
+Measured on the same machine, tablet, browser and test page, with the same validated
+instrument for both drivers. Full method and caveats in
+**[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.
+
+| | InkDriver | XP-Pen | 
+| --- | ---: | ---: |
+| CPU idle | **0.077% of a core** | 1.61% |
+| CPU while drawing | **77 to 84 ms per second** | 98 to 109 ms |
+| Memory idle | **84 MB** | 202 MB |
+| Memory while drawing | **76 MB** | 166 to 424 MB |
+| App bundle | **1.2 MB** | 100 MB |
+| Bundled frameworks | **none** | 10 Qt frameworks |
+| Pen events delivered | 62/s, 16 ms median | 62/s, 16 ms median |
+
+Roughly 21x less CPU when idle, about 20% less while drawing, and 2.4x less memory,
+with an identical delivered event stream: same rate, same interval distribution, no
+spikes either way. Both drivers run natively, so this is not a Rosetta effect.
+
+The 16 ms delivery cadence is the 60 Hz display refresh, not a driver property: the
+browser coalesces pointer movement to vsync, which is what makes it a fair common
+yardstick for the load both drivers were under.
+
+End-to-end input latency is **not** measured here, and no claim is made about it.
+Both drivers produce the same interval distribution, which says neither adds jitter
+the other lacks, and that is the extent of what the data supports.
+
 ## Status
 
 **Working, and verified against real hardware.** The protocol was measured with
