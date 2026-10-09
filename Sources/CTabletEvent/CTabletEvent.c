@@ -30,26 +30,39 @@ int xp_post_tablet_proximity(int connect, int x, int y, int entering,
     if (connect <= 0) {
         return -1;
     }
-    NXEventData data;
-    memset(&data, 0, sizeof(data));
-    data.mouse.tablet.proximity.vendorID = (UInt16)vendorID;
-    data.mouse.tablet.proximity.tabletID = (UInt16)tabletID;
-    data.mouse.tablet.proximity.pointerID = (UInt16)pointerID;
-    data.mouse.tablet.proximity.deviceID = 0;
-    data.mouse.tablet.proximity.systemTabletID = 0;
-    data.mouse.tablet.proximity.vendorPointerType = 0;
-    data.mouse.tablet.proximity.pointerSerialNumber = 0;
-    data.mouse.tablet.proximity.uniqueID = 0;
-    data.mouse.tablet.proximity.capabilityMask = (UInt32)capabilityMask;
-    data.mouse.tablet.proximity.pointerType = (UInt8)pointerType;
-    data.mouse.tablet.proximity.enterProximity = (UInt8)(entering ? 1 : 0);
+
+    // The vendor passes a *bare* NXTabletProximityData to IOHIDPostEvent, with its
+    // fields at offset zero of the buffer. That is not the same thing as an
+    // NXEventData, whose tablet union does not begin until +0x10, and passing one of
+    // those puts every field 16 bytes out: the kernel then sees a malformed event and
+    // stops delivering input afterwards. Recovered from the vendor's
+    // CEventPort::PostTabletProximity, and reproduced field for field:
+    //
+    //   +0x00 vendorID        +0x18 capabilityMask
+    //   +0x02 tabletID        +0x1c pointerType
+    //   +0x04 pointerID       +0x1d enterProximity
+    //   +0x06 deviceID
+    //   +0x08 systemTabletID
+    //   +0x0a vendorPointerType
+    //
+    // Coordinates travel in the location argument, not in the buffer.
+    unsigned char buf[64];
+    memset(buf, 0, sizeof(buf));
+    *(unsigned short *)(buf + 0x00) = (unsigned short)vendorID;
+    *(unsigned short *)(buf + 0x02) = (unsigned short)tabletID;
+    *(unsigned short *)(buf + 0x04) = (unsigned short)pointerID;
+    *(unsigned short *)(buf + 0x06) = 5;    // system-assigned device id
+    *(unsigned short *)(buf + 0x08) = 2;    // system-assigned tablet id
+    *(unsigned short *)(buf + 0x0a) = 2082; // vendor-defined pointer type
+    *(unsigned int *)(buf + 0x18) = (unsigned int)capabilityMask;
+    buf[0x1c] = (unsigned char)pointerType;
+    buf[0x1d] = (unsigned char)(entering ? 1 : 0);
 
     IOGPoint location;
     location.x = (SInt16)x;
     location.y = (SInt16)y;
 
-    // options = kIOHIDSetCursorPosition, matching the vendor's call, which passes 2.
-    return (int)IOHIDPostEvent(connect, NX_TABLETPROXIMITY, location, &data,
+    return (int)IOHIDPostEvent(connect, NX_TABLETPROXIMITY, location, (NXEventData *)buf,
                                kNXEventDataVersion, 0, kIOHIDSetCursorPosition);
 }
 

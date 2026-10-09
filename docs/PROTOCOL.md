@@ -315,11 +315,48 @@ The vendor's own connection setup is identical (`IOServiceOpen` with
 too, and its Firefox success remains unexplained by anything measurable in its
 event stream.
 
-Conclusion: Firefox gates pen handling on `tabletProximity:`, AppKit raises that
-only for a native tablet event, and neither public route can create one on this
-macOS. Open question worth one more measurement: whether the *vendor's* subtype-2
-event fires `tabletProximity:` on a view, which an observer can now determine by
-recording the callback name rather than the subtype.
+### The cause, and the fix
+
+Firefox gates pen handling on `tabletProximity:`, and AppKit raises that only for a
+native tablet event posted through `IOHIDPostEvent`. The driver was posting a
+`CGEvent` with a tablet-proximity *subtype* instead, which AppKit delivers to
+`mouseMoved`, so the flag was never set and Firefox reported a mouse.
+
+The fix is one call, and the detail that made it work is the **layout of the buffer
+passed to `IOHIDPostEvent`**. The vendor passes a *bare* `NXTabletProximityData`,
+with its fields at offset zero:
+
+```
++0x00 vendorID      +0x18 capabilityMask
++0x02 tabletID      +0x1c pointerType
++0x04 pointerID     +0x1d enterProximity
++0x06 deviceID
++0x08 systemTabletID
++0x0a vendorPointerType
+```
+
+That is not an `NXEventData`. In an `NXEventData` the tablet union does not begin
+until `+0x10` (it follows `subx`, `suby`, `eventNum`, `click`, `pressure`,
+`buttonNumber`, `subType`, `reserved2` and `reserved3`), so writing
+`data.mouse.tablet.proximity.capabilityMask` puts the field 16 bytes past where the
+kernel looks. A malformed proximity event does not merely fail: it puts the input
+system into a tablet-in-proximity state, after which that process's later CGEvent
+posts are silently dropped. That is what made `IOHIDPostEvent` look inert, and why
+an earlier attempt in this repo concluded it could not work. It worked; the fields
+were in the wrong place.
+
+Measured before and after, same harness, same page:
+
+| | before | after | vendor |
+| --- | --- | --- | --- |
+| `pointerType` | mouse, always | `{mouse: 8, pen: 59}` | `{mouse: 92, pen: 73}` |
+| distinct pressure values | 2 (`0, 0.5`) | 39 | 47 |
+| tilt | 0 | tiltX 0..10, tiltY -11..0 | tiltX 0..5 |
+
+An oracle that removes the observer from the loop is what settled it: it posts a
+proximity event, then posts its own synthetic tablet-point events over the browser
+window, and reads what the page saw. That needs no pen and no user, and it is
+immune to the blind spots that produced two wrong conclusions earlier in this file.
 
 An earlier note here claimed this required `IOHIDPostEvent`, on the strength of a
 2017 Firefox patch that gated on a `tabletProximity:` callback. That was wrong:

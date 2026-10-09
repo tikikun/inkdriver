@@ -136,7 +136,13 @@ NSEvent.addLocalMonitorForEvents(matching: [.tabletPoint, .tabletProximity, .mou
                               location: event.locationInWindow))
     return event
 }
-view.onEvent = { row, via in received.append(row); receivedVia.append(via) }
+view.onEvent = { row, via in
+    received.append(row); receivedVia.append(via)
+    // Printed live in watch mode too. A local monitor only sees events that reach
+    // this app through sendEvent:, so it cannot say which responder method AppKit
+    // chose, and that choice is the whole question for Firefox.
+    if watchMode { print("    VIEW CALLBACK -> \(via)  (type=\(row.typeRaw) sub=\(row.subtype))  <== APPKIT CHOSE THIS") }
+}
 
 // Cocoa screen coordinates put the origin at the bottom-left of the primary
 // display; CoreGraphics puts it at the top-left. Warping and posting in the wrong

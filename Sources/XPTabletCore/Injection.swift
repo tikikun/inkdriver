@@ -426,7 +426,19 @@ public final class EventInjector {
         event.setIntegerValueField(TabletField.proximityPointerType, value: pen.eraser ? 3 : 1)
         event.setIntegerValueField(TabletField.proximityEnter, value: entering ? 1 : 0)
         event.post(tap: .cghidEventTap)
+
+        // A CGEvent subtype is not enough on its own. AppKit delivers the event above
+        // to `mouseMoved`, never to `tabletProximity:`, and Firefox sets its pen flag
+        // only from `tabletProximity:`. The vendor posts a genuine native tablet event
+        // through IOHIDPostEvent for exactly this, so do the same.
+        if Self.nativePoster.isAvailable {
+            Self.nativePoster.postProximity(entering: entering, at: point)
+        }
     }
+
+    /// Native tablet events, posted through the IOHIDSystem connection the vendor
+    /// also uses. Shared because the connection is per-process and cheap to reuse.
+    private static let nativePoster = TabletEventPoster()
 
     // MARK: - Private
 
