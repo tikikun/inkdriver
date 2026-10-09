@@ -19,6 +19,30 @@ CoreGraphics (to inject events).
 | Multiple monitors | per-display settings, switch displays from a bound key |
 | Menu bar app | full settings window, JSON config, starts at login |
 
+## How it compares
+
+| | XP-Pen 4.0.18 | InkDriver |
+| --- | ---: | ---: |
+| Installer | 54 MB | **272 KB** |
+| Installed on disk | ~102 MB | **867 KB** |
+| Background processes | 3 | **1** |
+| Network APIs imported | yes | **none** |
+| Apple API entry points used | hundreds, across a 27 MB Qt binary | **48** |
+| Source available | no | **all 3,541 lines** |
+
+The whole API surface the driver can use is CoreGraphics, IOKit's HID manager,
+`AXIsProcessTrusted`, CoreFoundation's run loop, and libc — 48 entry points, no
+socket, no URL session, no hostname or serial-number lookup, and no event tap.
+That is verifiable in one command:
+
+```sh
+otool -Iv .build/release/xpdriverd | grep '^0x' | awk '{print $NF}' \
+  | sed 's/^_//' | grep -vE '^\$|^swift_|^_swift|^__|^_Block|^_NSConcrete|^LOCAL' | sort -u
+```
+
+See **[COMPARISON.md](COMPARISON.md)** for the full breakdown, including an honest
+list of what the vendor driver does that this one does not.
+
 ## Status
 
 **Working, and verified against real hardware.** The protocol was measured with
