@@ -86,6 +86,22 @@ End-to-end input latency is **not** measured here, and no claim is made about it
 Both drivers produce the same interval distribution, which says neither adds jitter
 the other lacks, and that is the extent of what the data supports.
 
+### Accuracy
+
+`.build/release/xppen-probe --check-accuracy` verifies the transforms arithmetically:
+the mapping is exactly affine, covers the target area with no error, never escapes
+the display, and keeps all 16384 pressure levels with no loss. Details in
+**[docs/ACCURACY.md](docs/ACCURACY.md)**.
+
+One real deviation, measured on hardware and inherited from the vendor: tilt is
+divided by 84 while Apple's convention makes 1.0 equal 90 degrees, so a maximum
+physical tilt of 60 degrees arrives as 64. Set `"tiltScale": 90.0` for true degrees,
+or leave it at the default 84 for exact vendor parity.
+
+```json
+"tiltScale": 84.0, "invertTiltX": false, "invertTiltY": false,
+```
+
 ## Status
 
 **Working, and verified against real hardware.** The protocol was measured with

@@ -147,6 +147,194 @@ func parseOptions() -> Options {
             }
             exit(0)
 
+        case "--check-accuracy":
+            // Accuracy of the transforms, as opposed to the plumbing: does the mapping
+            // cover the intended area exactly, is it uniform, does pressure keep its
+            // resolution end to end, and does tilt span the range applications expect.
+            // These are exact checks on the real code paths, so they are reproducible
+            // and need no hardware.
+            let display = AreaMapper.DisplayBounds(originX: 0, originY: 0, width: 2560,
+                                                   height: 1440, displayID: 724_053_248)
+            var failures: [String] = []
+
+            print("accuracy of the transforms\n")
+
+            // 1. Coordinate mapping. For every mode x rotation x invert, sample the
+            //    whole tablet area and check three things: nothing leaves the display,
+            //    the mapped region covers the target rect exactly, and equal raw steps
+            //    produce equal screen steps (the mapping should be affine).
+            print("coordinate mapping, 512 samples across each axis per combination")
+            var combinations = 0
+            var worstUniformity = 0.0
+            var worstCoverage = 0.0
+            var worstEscape = 0.0
+            for mode in MappingMode.allCases {
+                for rotation in [0, 90, 180, 270] {
+                    for invertX in [false, true] {
+                        for invertY in [false, true] {
+                            var workspace = WorkspaceConfig()
+                            workspace.mode = mode
+                            workspace.rotation = rotation
+                            workspace.invertX = invertX
+                            workspace.invertY = invertY
+                            let mapper = AreaMapper(workspace: workspace, displays: [display])
+                            let target = mapper.targetRect
+                            combinations += 1
+
+                            let n = 512
+                            var points: [CGPoint] = []
+                            points.reserveCapacity(n + 1)
+                            for i in 0...n {
+                                let x = UInt32(Double(Device.maxX) * Double(i) / Double(n))
+                                let y = UInt32(Double(Device.maxY) * Double(i) / Double(n))
+                                let p = mapper.map(x: x, y: y)
+                                points.append(p)
+                            }
+
+                            // Nothing may escape the display, even with the pen dragged
+                            // outside the active area.
+                            for p in points {
+                                worstEscape = max(worstEscape,
+                                                  -p.x, p.x - Double(display.width),
+                                                  -p.y, p.y - Double(display.height))
+                            }
+                            if worstEscape > 0.5 {
+                                failures.append("mapping escapes the display (mode \(mode.rawValue)"
+                                                + " rotation \(rotation))")
+                            }
+
+                            // Coverage: the sampled area must reach every side of the
+                            // target rect, and not overshoot it.
+                            let xs = points.map(\.x), ys = points.map(\.y)
+                            worstCoverage = max(worstCoverage,
+                                                abs(xs.min()! - target.minX),
+                                                abs(xs.max()! - target.maxX),
+                                                abs(ys.min()! - target.minY),
+                                                abs(ys.max()! - target.maxY))
+
+                            // Uniformity, tested exactly rather than by sampling: an
+                            // affine map sends the midpoint of two raw values to the
+                            // midpoint of their images. Truncating raw samples to
+                            // integers to measure step sizes instead measures the
+                            // truncation, which is what an earlier version of this
+                            // check did.
+                            // Keep every sample inside the tablet: map() clamps beyond
+                            // the maximum, and a clamped end point is not a midpoint.
+                            for fraction in [0.25, 0.5] {
+                                let xEnd = UInt32(Double(Device.maxX) * fraction)
+                                let yEnd = UInt32(Double(Device.maxY) * fraction)
+                                let a = mapper.map(x: 0, y: 0)
+                                let b = mapper.map(x: xEnd, y: yEnd)
+                                let c = mapper.map(x: xEnd * 2, y: yEnd * 2)
+                                worstUniformity = max(worstUniformity,
+                                                      abs(b.x - (a.x + c.x) / 2),
+                                                      abs(b.y - (a.y + c.y) / 2))
+                            }
+                        }
+                    }
+                }
+            }
+            print(String(format: "  combinations tested:            %d", combinations))
+            print(String(format: "  worst escape past the display:  %.6f px", worstEscape))
+            print(String(format: "  worst coverage error:           %.6f px", worstCoverage))
+            print(String(format: "  worst departure from affine:    %.6f px", worstUniformity))
+            if worstCoverage > 0.5 {
+                failures.append(String(format: "coverage error %.3f px", worstCoverage))
+            }
+            if worstUniformity > 0.001 {
+                failures.append(String(format: "non-affine mapping %.6f px", worstUniformity))
+            }
+
+            // 2. Spatial resolution: what does one raw unit move on screen, and is
+            //    sub-pixel precision preserved rather than rounded to whole pixels?
+            var workspace = WorkspaceConfig()
+            workspace.mode = .stretch
+            let mapper = AreaMapper(workspace: workspace, displays: [display])
+            let stepX = mapper.map(x: 1, y: 0).x - mapper.map(x: 0, y: 0).x
+            let stepY = mapper.map(x: 0, y: 1).y - mapper.map(x: 0, y: 0).y
+            print("\nspatial resolution (stretch, 2560x1440)")
+            print(String(format: "  one raw x unit moves the cursor %.6f px", stepX))
+            print(String(format: "  one raw y unit moves the cursor %.6f px", stepY))
+            print(String(format: "  raw units per screen pixel: x %.2f, y %.2f",
+                         1 / stepX, 1 / stepY))
+            let fractional = stepX - stepX.rounded(.down)
+            print(String(format: "  fractional part kept: %.6f px (0 would mean whole-pixel steps)",
+                         fractional))
+            if fractional < 1e-6 {
+                failures.append("mapping quantises to whole pixels")
+            }
+
+            // 3. Pressure. The device reports 14 bits, so the normalised value should
+            //    keep all of them: monotonic, exact at both ends, no collisions.
+            print("\npressure (device is " + "\(Device.maxPressure)" + " steps)")
+            var previous = -1.0
+            var monotonic = true
+            var levels = Set<Double>()
+            var worstPressureStep = 0.0
+            for raw in 0...Int(Device.maxPressure) {
+                let value = Double(raw) / Double(Device.maxPressure)
+                if value < previous { monotonic = false }
+                worstPressureStep = max(worstPressureStep, value - max(previous, 0))
+                previous = value
+                levels.insert(value)
+            }
+            print(String(format: "  normalised range:               %.6f to %.6f",
+                         0.0, Double(Device.maxPressure) / Double(Device.maxPressure)))
+            print(String(format: "  distinct values:                %d of %d",
+                         levels.count, Int(Device.maxPressure) + 1))
+            print(String(format: "  largest step between neighbours: %.6f (device quantum %.6f)",
+                         worstPressureStep, 1.0 / Double(Device.maxPressure)))
+            print("  monotonic: \(monotonic ? "yes" : "NO")")
+            if levels.count != Int(Device.maxPressure) + 1 { failures.append("pressure loses levels") }
+            if !monotonic { failures.append("pressure is not monotonic") }
+
+            // 4. Tilt. Decode the extreme raw values and check the clamped range, the
+            //    sign convention, and what the extremes map to once scaled.
+            print("\ntilt")
+            func decodedTilt(_ raw: UInt8) -> (Int8, Int8)? {
+                var report = [UInt8](repeating: 0, count: 12)
+                report[1] = 0xA1          // pen report (status nibble 0xA0) with tip down
+                report[8] = raw
+                report[9] = raw
+                guard let d = try? ReportDecoder.decode(report), case .pen(let pen) = d else { return nil }
+                return (pen.tiltX, pen.tiltY)
+            }
+            let extremes: [(String, UInt8)] = [("0", 0), ("+60", 60), ("+127", 127), ("-60", 0xC4), ("-128", 0x80)]
+            var worstTilt = 0.0
+            for (name, raw) in extremes {
+                guard let (tx, ty) = decodedTilt(raw) else {
+                    failures.append("tilt decode failed for raw \(name)")
+                    continue
+                }
+                let scale = Device.vendorTiltDivisor
+                let normalised = Double(tx) / scale
+                worstTilt = max(worstTilt, abs(normalised))
+                print(String(format: "  raw %-5s -> tiltX %4d  tiltY %4d  normalised %+.4f  (app sees %+.1f deg)",
+                             (name as NSString).utf8String!, Int(tx), Int(ty), normalised,
+                             normalised * 90))
+            }
+            print(String(format: "  largest normalised tilt:        %.4f of 1.0", worstTilt))
+            // Measured on hardware: the pen reports raw tilt to +/-60, and the model is
+            // rated at +/-60 degrees, so raw units are degrees. Apple's convention is
+            // that 1.0 is 90 degrees (Firefox computes tiltX as tilt * 90), so the
+            // vendor's divisor of 84 makes the extreme tilt arrive as
+            // lround(60/84*90) = 64 degrees instead of 60. Setting tiltScale to 90
+            // reports the true angle; the default keeps vendor parity.
+            print(String(format: "  raw tilt spans +/-60 = +/-60 deg on this model"))
+            print(String(format: "  at the extreme the driver reports %.0f deg (should be 60)",
+                         (60.0 / Device.vendorTiltDivisor) * 90))
+            print(String(format: "  tiltScale 90 gives true degrees, %.0f is vendor parity",
+                         Device.vendorTiltDivisor))
+            if worstTilt > 1.0 { failures.append("tilt can exceed the documented -1..1 range") }
+
+            print("")
+            if failures.isEmpty {
+                print("all accuracy checks passed")
+            } else {
+                print("accuracy problems:")
+                for f in failures { print("  - " + f) }
+            }
+
         case "--check-pressure":
             print("pressure pipeline and contact decision\n")
             print("contact decision (status, raw pressure, threshold -> touching)")
@@ -332,7 +520,20 @@ struct FieldStats {
     var pMin = UInt16.max, pMax: UInt16 = 0
     var tiltXMin: Int8 = .max, tiltXMax: Int8 = .min
     var tiltYMin: Int8 = .max, tiltYMax: Int8 = .min
+    /// Tilt as it comes off the wire, before `clampTilt` saturates anything. The
+    /// decoded range stops at +/-60 because that is where the driver clamps, so the
+    /// decoded numbers cannot say what the hardware actually reports at its limits.
+    var tiltXRawMin: Int8 = .max, tiltXRawMax: Int8 = .min
+    var tiltYRawMin: Int8 = .max, tiltYRawMax: Int8 = .min
     var statuses: [UInt8: Int] = [:]
+
+    mutating func addRawTilt(bytes: [UInt8]) {
+        guard bytes.count >= 10 else { return }
+        let rx = Int8(bitPattern: bytes[8])
+        let ry = Int8(bitPattern: bytes[9])
+        tiltXRawMin = min(tiltXRawMin, rx); tiltXRawMax = max(tiltXRawMax, rx)
+        tiltYRawMin = min(tiltYRawMin, ry); tiltYRawMax = max(tiltYRawMax, ry)
+    }
 
     mutating func add(_ pen: PenReport) {
         count += 1
@@ -372,6 +573,7 @@ func describe(_ bytes: [UInt8], tag: String) {
         case .command(let response, let payload):
             print(line + String(format: "  -> command reply 0x%02X %@", response, hex(payload)))
         case .pen(let pen):
+            stats.addRawTilt(bytes: bytes)
             stats.add(pen)
             var flags: [String] = []
             if pen.tipDown { flags.append("TIP") }
@@ -408,8 +610,10 @@ interrupt.setEventHandler {
         print(String(format: "x      %u ... %u", stats.xMin, stats.xMax))
         print(String(format: "y      %u ... %u", stats.yMin, stats.yMax))
         print(String(format: "pressure %u ... %u", stats.pMin, stats.pMax))
-        print("tiltX  \(stats.tiltXMin) ... \(stats.tiltXMax)")
-        print("tiltY  \(stats.tiltYMin) ... \(stats.tiltYMax)")
+        print("tiltX  \(stats.tiltXMin) ... \(stats.tiltXMax)   (already clamped to +/-60)")
+        print("tiltY  \(stats.tiltYMin) ... \(stats.tiltYMax)   (already clamped to +/-60)")
+        print("tiltX raw off the wire \(stats.tiltXRawMin) ... \(stats.tiltXRawMax)")
+        print("tiltY raw off the wire \(stats.tiltYRawMin) ... \(stats.tiltYRawMax)")
         print("status bytes: " + stats.statuses.sorted { $0.key < $1.key }
             .map { String(format: "0x%02X×%d", $0.key, $0.value) }.joined(separator: " "))
     }

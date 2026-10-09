@@ -92,7 +92,8 @@ public enum Device {
 public struct PenReport: Equatable {
     public var x: UInt32
     public var y: UInt32
-    /// 13-bit pressure, 0 ... 8191.
+    /// Pressure, 0 ... `Device.maxPressure` (16383, so 14-bit). The wire format
+    /// carries the low byte plus the low 6 bits of the next, which is 14 bits.
     public var pressure: UInt16
     /// Tilt in raw signed units, roughly -90 ... 90 degrees.
     public var tiltX: Int8
